@@ -41,7 +41,7 @@ class CUDATimer:
     def __exit__(self, *exc_info):
         self.stop.record()
         torch.cuda.synchronize()
-        t = 1000 * self.start.elapsed_time(self.stop)
+        t = self.start.elapsed_time(self.stop) / 1000
 
         if t > 1.0:
             print(f'Elapsed: {t:>3.2f} s')
