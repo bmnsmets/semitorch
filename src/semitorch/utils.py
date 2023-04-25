@@ -9,11 +9,13 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from mpl_toolkits.axes_grid1 import ImageGrid
 import ipywidgets as widgets
+import numpy as np
+
 
 class Timer:
     def __init__(self):
         pass
-    
+
     def __enter__(self):
         self.t0 = time.time()
 
@@ -29,12 +31,11 @@ class Timer:
             print(f'Elapsed: {(1e9 * t):>3.2f} ns')
 
 
-
 class CUDATimer:
     def __init__(self):
         self.start = torch.cuda.Event(enable_timing=True)
         self.stop = torch.cuda.Event(enable_timing=True)
-    
+
     def __enter__(self):
         self.start.record()
 
@@ -53,7 +54,7 @@ class CUDATimer:
             print(f'Elapsed: {(1e9 * t):>3.2f} ns')
 
 
-def ntuple(x, n:int):
+def ntuple(x, n: int):
     if isinstance(x, collections.abc.Iterable):
         return tuple(x)
     return tuple(repeat(x, n))
