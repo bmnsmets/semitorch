@@ -1,9 +1,45 @@
-[build-system]
-# AVOID CHANGING REQUIRES: IT WILL BE UPDATED BY PYSCAFFOLD!
-requires = ["setuptools>=46.1.0", "setuptools_scm[toml]>=5"]
-build-backend = "setuptools.build_meta"
+[project]
+name = "semitorch"
+version = "0.1.0"
+description = "Semiring based operators for PyTorch"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
 
-[tool.setuptools_scm]
-# For smarter version schemes and other configuration options,
-# check out https://github.com/pypa/setuptools_scm
-version_scheme = "no-guess-dev"
+keywords = ["deep learning", "pytorch"] 
+
+authors = [
+  {name = "B.M.N. Smets", email = "bmnsmets@protonmail.com" }
+]
+
+classifiers = [  # Optional
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3 :: Only",
+]
+
+
+dependencies = [
+  "torch",
+]
+
+
+[project.optional-dependencies]
+dev = ["check-manifest"]
+test = ["pytest"]
+
+
+[project.urls]  
+"Homepage" = "https://github.com/bmnsmets/semitorch"
+
+
+[tool.setuptools]
+package-data = {"*" = ["csrc/**"]}
+
+
+[build-system]
+requires = ["setuptools>=43.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
