@@ -2,6 +2,8 @@ from torch.utils.cpp_extension import load
 from pathlib import Path
 from glob import glob
 
+from .utils import *
+
 _libsemitorch = None
 
 def _load_jit_extension():
