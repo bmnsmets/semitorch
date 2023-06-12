@@ -43,3 +43,18 @@ package-data = {"*" = ["csrc/**"]}
 [build-system]
 requires = ["setuptools>=43.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+
+[tool.autopep8]
+max_line_length = 100
+ignore = ""
+in-place = true
+recursive = true
+aggressive = 3
+
+
+[tool.pytest.ini_options]
+addopts = [
+    "--import-mode=importlib",
+]
+filterwarnings = ["ignore::DeprecationWarning"]
