@@ -2,9 +2,10 @@ from torch.utils.cpp_extension import load
 from pathlib import Path
 from glob import glob
 import torch
+import taichi as ti
 
 from .utils import *
-from .maxplus import *
+from .maxplus import maxplus, MaxPlus
 
 __version__ = '0.1.0'
 
@@ -33,5 +34,7 @@ def _load_jit_extension():
         )
 
 
-_load_jit_extension()
-
+if torch.cuda.is_available():
+    ti.init(arch=ti.gpu)
+else:
+    ti.init()
