@@ -37,4 +37,4 @@ def _load_jit_extension():
 if torch.cuda.is_available():
     ti.init(arch=ti.gpu)
 else:
-    ti.init()
+    ti.init(arch=ti.cpu)
