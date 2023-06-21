@@ -6,7 +6,7 @@ import math
 
 
 @ti.kernel
-def maxplus_kernel_v1(
+def maxplus_inference_kernel_v1(
     y: ti.types.ndarray(ndim=2),  # [B,Dy]
     x: ti.types.ndarray(ndim=2),  # [B,Dx]
     a: ti.types.ndarray(ndim=2),  # [Dy,Dx]
@@ -84,7 +84,7 @@ class MaxPlusFunction_v1(torch.autograd.Function):
             maxplus_fw_kernel_v1(y, hits, x, a)
             ctx.save_for_backward(hits)
         else:
-            maxplus_kernel_v1(y, x, a)
+            maxplus_inference_kernel_v1(y, x, a)
 
         ti.sync()
         return y
@@ -105,7 +105,7 @@ class MaxPlusFunction_v1(torch.autograd.Function):
 
 def maxplus_v1(x, a, bias = None):
     y = MaxPlusFunction_v1.apply(x, a, torch.is_grad_enabled())
-    if bias:
+    if bias != None:
         return y + bias
     else:
         return y
@@ -136,21 +136,21 @@ class MaxPlus(torch.nn.Module):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
-        self.weight = torch.Parameter(
+        self.weight = torch.nn.Parameter(
             torch.empty((out_features, in_features), **factory_kwargs)
         )
         if bias:
-            self.bias = torch.Parameter(torch.empty(out_features, **factory_kwargs))
+            self.bias = torch.nn.Parameter(torch.empty(out_features, **factory_kwargs))
         else:
             self.register_parameter("bias", None)
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
-        torch.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        torch.nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
         if self.bias is not None:
-            fan_in, _ = torch.init._calculate_fan_in_and_fan_out(self.weight)
+            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight)
             bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
-            torch.init.uniform_(self.bias, -bound, bound)
+            torch.nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         return maxplus(input, self.weight, self.bias)
