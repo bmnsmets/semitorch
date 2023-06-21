@@ -4,15 +4,16 @@ import taichi as ti
 import taichi.math as tm
 import math
 
-"""
-    Kernel for inference only, the locations of the maxima (the `hits`) are not recorded.
-"""
+
 @ti.kernel
 def maxplus_inference_kernel_v1(
     y: ti.types.ndarray(ndim=2),  # [B,Dy]
     x: ti.types.ndarray(ndim=2),  # [B,Dx]
     a: ti.types.ndarray(ndim=2),  # [Dy,Dx]
 ):
+    """
+    Kernel for inference only, the locations of the maxima (the `hits`) are not recorded.
+    """
     for b, i in y:
         v = -tm.inf
         for j in range(a.shape[-1]):
@@ -20,9 +21,6 @@ def maxplus_inference_kernel_v1(
         y[b, i] = v
 
 
-"""
-    Forward pass kernel
-"""
 @ti.kernel
 def maxplus_fw_kernel_v1(
     y: ti.types.ndarray(ndim=2),  # [B,Dy]
@@ -30,6 +28,9 @@ def maxplus_fw_kernel_v1(
     x: ti.types.ndarray(ndim=2),  # [B,Dx]
     a: ti.types.ndarray(ndim=2),  # [Dy,Dx]
 ):
+    """
+    Forward pass kernel
+    """
     for b, i in y:
         v = -tm.inf
         hit: ti.i32 = -1
@@ -42,15 +43,15 @@ def maxplus_fw_kernel_v1(
         hits[b, i] = hit
 
 
-"""
-    Backward pass kernel for the `x` input
-"""
 @ti.kernel
 def maxplus_bw_x_kernel_v1(
     gradx: ti.types.ndarray(ndim=2),  # [B,Dx]
     hits: ti.types.ndarray(dtype=ti.i32, ndim=2),  # [B,Dy]
     grady: ti.types.ndarray(ndim=2),  # [B,Dy]
 ):
+    """
+    Backward pass kernel for the `x` input
+    """
     for b, i in gradx:
         val = 0 * gradx[b, i]
         for j in range(hits.shape[1]):
@@ -59,15 +60,15 @@ def maxplus_bw_x_kernel_v1(
         gradx[b, i] = val
 
 
-"""
-    Backward pass kernel for the `a` input
-"""
 @ti.kernel
 def maxplus_bw_a_kernel_v1(
     grada: ti.types.ndarray(ndim=2),  # [Dy,Dx]
     hits: ti.types.ndarray(dtype=ti.i32, ndim=2),  # [B,Dy]
     grady: ti.types.ndarray(ndim=2),  # [B,Dy]
 ):
+    """
+    Backward pass kernel for the `a` input
+    """
     for j, i in grada:
         val = 0.0
         for b in range(hits.shape[0]):
@@ -114,7 +115,7 @@ class MaxPlusFunction_v1(torch.autograd.Function):
         return gradx, grada, None
 
 
-def maxplus_v1(x, a, bias = None):
+def maxplus_v1(x, a, bias=None):
     y = MaxPlusFunction_v1.apply(x, a, torch.is_grad_enabled())
     if bias != None:
         return y + bias
@@ -126,8 +127,8 @@ maxplus = maxplus_v1
 
 
 class MaxPlus(torch.nn.Module):
-    """ 
-        Applies a tropical max-plus transformation to the supplied data.
+    """
+    Applies a tropical max-plus transformation to the supplied data.
     """
 
     __constants__ = ["in_features", "out_features"]
