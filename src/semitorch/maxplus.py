@@ -4,7 +4,9 @@ import taichi as ti
 import taichi.math as tm
 import math
 
-
+"""
+    Kernel for inference only, the locations of the maxima (the `hits`) are not recorded.
+"""
 @ti.kernel
 def maxplus_inference_kernel_v1(
     y: ti.types.ndarray(ndim=2),  # [B,Dy]
@@ -18,6 +20,9 @@ def maxplus_inference_kernel_v1(
         y[b, i] = v
 
 
+"""
+    Forward pass kernel
+"""
 @ti.kernel
 def maxplus_fw_kernel_v1(
     y: ti.types.ndarray(ndim=2),  # [B,Dy]
@@ -37,6 +42,9 @@ def maxplus_fw_kernel_v1(
         hits[b, i] = hit
 
 
+"""
+    Backward pass kernel for the `x` input
+"""
 @ti.kernel
 def maxplus_bw_x_kernel_v1(
     gradx: ti.types.ndarray(ndim=2),  # [B,Dx]
@@ -51,6 +59,9 @@ def maxplus_bw_x_kernel_v1(
         gradx[b, i] = val
 
 
+"""
+    Backward pass kernel for the `a` input
+"""
 @ti.kernel
 def maxplus_bw_a_kernel_v1(
     grada: ti.types.ndarray(ndim=2),  # [Dy,Dx]
