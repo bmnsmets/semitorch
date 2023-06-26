@@ -73,7 +73,7 @@ def maxplus_bw_a_kernel_v1(
         val = 0.0
         for b in range(hits.shape[0]):
             if hits[b, j] == i:
-                val += grady[b, j]
+                val = val + grady[b, j]
         grada[j, i] = val
 
 
