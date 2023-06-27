@@ -1,18 +1,9 @@
 import torch
-import semitorch
-import pytest
-from semitorch import maxplus, MaxPlus
-from torch.autograd.gradcheck import gradcheck
-
-
-RNG_SEED = 0
-
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
+from semitorch import maxplus, tests
 
 
 def test_maxplus():
-    torch.manual_seed(RNG_SEED)
+    torch.manual_seed(tests.DEFAULT_RNG_SEED)
     x = torch.Tensor([[0.0, 1.0]])
     a = torch.Tensor([[0.0, 0.0], [0.0, -1.0], [-1.0, -1.0]])
     y = maxplus(x, a)
@@ -41,22 +32,8 @@ def test_maxplus():
 
 
 def test_maxplus_cpu_autograd():
-    torch.manual_seed(RNG_SEED)
-
-    input = (
-        torch.randn(1, 10, requires_grad=True, dtype=torch.float64, device="cpu"),
-        torch.randn(5, 10, requires_grad=True, dtype=torch.float64, device="cpu"),
-    )
-
-    assert gradcheck(maxplus, input, atol=1e-3, rtol=1e-1)
+    assert tests.test_with_autograd(maxplus, "cpu")
 
 
 def test_maxplus_cuda_autograd():
-    torch.manual_seed(RNG_SEED)
-
-    input = (
-        torch.randn(1, 10, requires_grad=True, dtype=torch.float64, device="cuda"),
-        torch.randn(5, 10, requires_grad=True, dtype=torch.float64, device="cuda"),
-    )
-
-    assert gradcheck(maxplus, input, atol=1e-3, rtol=1e-1)
+    assert tests.test_with_autograd(maxplus, "cuda")
