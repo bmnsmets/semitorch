@@ -57,7 +57,8 @@ class CUDATimer:
 def ntuple(x, n: int):
     if isinstance(x, collections.abc.Iterable):
         return tuple(x)
-    return tuple(repeat(x, n))
+    else:
+        return tuple(repeat(x, n))
 
 
 def mnistplot(x):
