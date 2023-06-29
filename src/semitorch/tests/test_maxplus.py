@@ -10,6 +10,13 @@ def test_maxplus_should_add() -> None:
     assert y.allclose(torch.Tensor([6.0, 7.0]))
 
 
+def test_minplus_should_take_min() -> None:
+    x = torch.Tensor([[0.0, 1.0, 2.0, 3.0, 4.0, -1.0]])
+    a = torch.Tensor([[0.0, 0.0, 8.0, 1.2, 0.5, -3.6]])
+    y = maxplus(x, a)
+    assert y.allclose(torch.Tensor([10.0]))
+
+
 def test_maxplus_should_add_and_take_max() -> None:
     torch.manual_seed(tests.DEFAULT_RNG_SEED)
     x = torch.Tensor([[0.0, 1.0, 2.0, 3.0, 4.0, -1.0]])
@@ -63,9 +70,17 @@ def test_maxplus_fw_bw() -> None:
     )
 
 
-def test_maxplus_cpu_autograd():
+def test_maxplus_cpu_autograd() -> None:
     tests.test_with_autograd(maxplus, "cpu")
 
 
-def test_maxplus_cuda_autograd():
+def test_maxplus_cuda_autograd() -> None:
     tests.test_with_autograd(maxplus, "cuda")
+
+
+def test_maxplus_should_error_on_different_devices() -> None:
+    tests.test_should_error_on_different_devices(maxplus)
+
+
+def test_maxplus_should_error_on_wrong_dimensions() -> None:
+    tests.test_wrong_dimensions_should_error(maxplus)
