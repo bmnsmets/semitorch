@@ -3,7 +3,7 @@ r""" Semiring based variants of ConvNeXt
 Based on the following sources:
 
 * `A ConvNet for the 2020s` - https://arxiv.org/pdf/2201.03545.pdf
-    @Article{liu2022convnet,
+    @article{liu2022convnet,
     author  = {Zhuang Liu and Hanzi Mao and Chao-Yuan Wu and Christoph Feichtenhofer and Trevor Darrell and Saining Xie},
     title   = {A ConvNet for the 2020s},
     journal = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
@@ -26,10 +26,10 @@ Based on the following sources:
     doi = {10.5281/zenodo.4414861},
     howpublished = {\url{https://github.com/rwightman/pytorch-image-models}}
     }
-    Licenced under the Apache 2.0 license, original copyright notice
+    Licenced under the Apache 2.0 license, original copyright notice:
     Modifications and additions for timm hacked together by / Copyright 2022, Ross Wightman
 
-Our modifications substantially change the workings of the spatial and depthwise convolution operators in the networks.
+Our modifications substantially change the workings of the depthwise convolution and MLP operators in the networks.
 """
 
 
@@ -37,32 +37,69 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Union, Tuple, Optional
+from ..utils import ntuple
+from .general import LayerNorm2d
 
 
-class LayerNorm2d(nn.LayerNorm):
-    """LayerNorm for channels of '2D' spatial NCHW tensors"""
-
-    def __init__(self, num_channels, eps=1e-6, affine=True):
-        super().__init__(num_channels, eps=eps, elementwise_affine=affine)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x.permute(0, 2, 3, 1)
-        x = F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
-        x = x.permute(0, 3, 1, 2)
-        return x
-
-
-class ConvNeXtBlock_MaxPlus(nn.Module):
+class ConvNeXtBlock(nn.Module):
     def __init__(
         self,
         in_chs: int,
         out_chs: Optional[int] = None,
-        kernel_size: int = 7,
-        stride: int = 1,
-        dilation: Union[int, Tuple[int, int]] = (1, 1),
+        kernel_size: Union[int, Tuple[int, int]] = 7,
+        stride: Union[int, Tuple[int, int]] = 1,
+        dilation: Union[int, Tuple[int, int]] = 1,
         mlp_ratio: int = 4,
     ):
-        pass
+        super().__init__()
+        self.in_chs = in_chs
+        self.out_chs = out_chs or in_chs
+        self.kernel_size = ntuple(kernel_size, 2)
+        self.stride = ntuple(stride, 2)
+        self.dilation = ntuple(dilation, 2)
+        self.mlp_ratio = mlp_ratio
+
+    def forward(self, x):
+        y = self.conv_dw(x)
+        y = self.norm(y)
+        y = self.mlp(y)
+        return self.skip(x) + y
+
+
+class ConvNeXtBlock_Classic(ConvNeXtBlock):
+    def __init__(
+        self,
+        in_chs: int,
+        out_chs: Optional[int] = None,
+        kernel_size: Union[int, Tuple[int, int]] = 7,
+        stride: Union[int, Tuple[int, int]] = 1,
+        dilation: Union[int, Tuple[int, int]] = 1,
+        mlp_ratio: int = 4,
+    ):
+        super().__init__(
+            in_chs=in_chs,
+            out_chs=out_chs,
+            kernel_size=ntuple(kernel_size, 2),
+            stride=ntuple(stride, 2),
+            dilation=ntuple(dilation, 2),
+        )
+        out_chs = out_chs or in_chs
+        kernel_size = ntuple(kernel_size, 2)
+        stride = ntuple(stride, 2)
+        dilation = ntuple(dilation, 2)
+
+        self.conv_dw = nn.Conv2d(
+            in_chs,
+            out_chs,
+            kernel_size=kernel_size,
+            stride=stride,
+            dilation=dilation,
+            groups=in_chs,
+        )
+
+
+class ConvNeXtBlock_MaxPlusMLP(ConvNeXtBlock):
+    pass
 
 
 class ConvNeXtStage(nn.Module):
@@ -72,7 +109,7 @@ class ConvNeXtStage(nn.Module):
         out_chs: int,
         depth: int = 2,
         downsample: Union[None, int] = None,
-        block_type=ConvNeXtBlock_MaxPlus,
+        block_type=ConvNeXtBlock_Classic,
     ):
         super().__init__()
         if downsample == None:
