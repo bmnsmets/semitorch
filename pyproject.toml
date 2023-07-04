@@ -24,7 +24,8 @@ classifiers = [  # Optional
 
 dependencies = [
   "torch",
-  "taichi"
+  "taichi",
+  "timm"
 ]
 
 
