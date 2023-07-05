@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 class LayerNorm2d(nn.LayerNorm):
-    """LayerNorm for channels of '2D' spatial NCHW tensors"""
+    """LayerNorm for channels of 2D spatial NCHW feature maps"""
 
     def __init__(self, channels, eps=1e-6, affine=True):
         super().__init__(channels, eps=eps, elementwise_affine=affine)
@@ -17,7 +17,7 @@ class LayerNorm2d(nn.LayerNorm):
 
 
 class LayerScaler(nn.Module):
-    """Scale channels"""
+    """Scale per channel"""
 
     def __init__(self, init_value: float, channels: int):
         super().__init__()
@@ -34,10 +34,9 @@ def drop_path(
 ):
     if drop_prob == 0.0 or not training:
         return x
-    keep_prob = 1 - drop_prob
     shape = (x.shape[0],) + (1,) * (x.ndim - 1)
     keep = x.new_empty(shape).bernoulli_(1 - drop_prob)
-    if keep_prob > 0.0 and scale_by_keep:
+    if drop_prob < 1.0 and scale_by_keep:
         keep.div_(1 - drop_prob)
     return keep * x
 

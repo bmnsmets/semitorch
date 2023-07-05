@@ -48,43 +48,44 @@ class ConvNeXtBlock(nn.Module):
         out_chs: Optional[int] = None,
         kernel_size: Union[int, Tuple[int, int]] = 7,
         stride: Union[int, Tuple[int, int]] = 1,
-        dilation: Union[int, Tuple[int, int]] = 1,
         mlp_ratio: int = 4,
         drop_prob: float = 0.0,
         layerscale_init_value=1e-6,
         conv_bias: bool = True,
     ):
         super().__init__()
-        self.in_chs = in_chs
-        self.out_chs = out_chs or in_chs
-        self.kernel_size = ntuple(kernel_size, 2)
-        self.stride = ntuple(stride, 2)
-        self.dilation = ntuple(dilation, 2)
-        self.mlp_ratio = mlp_ratio
-        self.conv_bias = conv_bias
+        out_chs = out_chs or in_chs
+        self.conv_dw = nn.Conv2d(
+            self.in_chs,
+            self.out_chs,
+            kernel_size=kernel_size,
+            padding="same",
+            stride=stride,
+            groups=in_chs,
+            bias=conv_bias,
+        )
+        self.norm = LayerNorm2d(self.out_chs)
+        self.mlp = nn.Sequential(
+            nn.Linear(self.out_chs, out_chs * mlp_ratio),
+            nn.GELU(),
+            nn.Linear(mlp_ratio * out_chs, out_chs),
+        )
+        self.scale = LayerScaler(layerscale_init_value, out_chs)
 
         if drop_prob > 0.0:
             self.drop = DropPath(drop_prob)
 
-        self.norm = LayerNorm2d(out_chs)
-        self.scale = LayerScaler(layerscale_init_value, out_chs)
-        if (
-            self.in_chs != self.out_chs
-            or self.stride != (1, 1)
-            or self.dilation != (1, 1)
-        ):
-            self.skip = DownSample(
-                self.in_chs, self.out_chs, stride=self.stride, dilation=self.dilation
-            )
+        if self.in_chs != self.out_chs:
+            self.skip = nn.Conv2d(self.in_chs, self.out_chs, 1)
 
     def forward(self, x):
         # depthwise conv + normalization
-        y = self.conv_dw(x) if hasattr(self, "conv_dw") else x
-        y = self.norm(y) if hasattr(self, "norm") else y
+        y = self.conv_dw(x)
+        y = self.norm(y)
 
         # pixel-wise MLP
         y = y.permute(0, 2, 3, 1)  # N C H W --> N H W C
-        y = self.mlp(y) if hasattr(self, "mlp") else y
+        y = self.mlp(y)
         y = self.scale(y) if hasattr(self, "scale") else y
         y = y.permute(0, 3, 1, 2)  # N H W C --> N C H W
 
@@ -97,49 +98,7 @@ class ConvNeXtBlock(nn.Module):
         return x + y
 
 
-class ConvNeXtBlock_Classic(ConvNeXtBlock):
-    def __init__(
-        self,
-        in_chs: int,
-        out_chs: Optional[int] = None,
-        kernel_size: Union[int, Tuple[int, int]] = 7,
-        stride: Union[int, Tuple[int, int]] = 1,
-        dilation: Union[int, Tuple[int, int]] = 1,
-        mlp_ratio: int = 4,
-        drop_prob: float = 0.0,
-        layerscale_init_value=1e-6,
-        conv_bias: bool = True,
-    ):
-        super().__init__(
-            in_chs=in_chs,
-            out_chs=out_chs,
-            kernel_size=ntuple(kernel_size, 2),
-            stride=ntuple(stride, 2),
-            dilation=ntuple(dilation, 2),
-            mlp_ratio=mlp_ratio,
-            drop_prob=drop_prob,
-            layerscale_init_value=layerscale_init_value,
-            conv_bias=conv_bias,
-        )
-
-        self.conv_dw = nn.Conv2d(
-            self.in_chs,
-            self.out_chs,
-            kernel_size=self.kernel_size,
-            stride=self.stride,
-            dilation=self.dilation,
-            groups=self.in_chs,
-            bias=self.conv_bias,
-        )
-
-        self.mlp = nn.Sequential(
-            nn.Linear(self.out_chs, self.out_chs * self.mlp_ratio),
-            nn.GELU(),
-            nn.Linear(self.mlp_ratio * self.out_chs, self.out_chs),
-        )
-
-
-class ConvNeXtBlock_MaxPlusMLP(ConvNeXtBlock):
+class ConvNeXtBlock_MaxPlusMLP(nn.Module):
     pass
 
 

@@ -6,6 +6,7 @@ import taichi as ti
 
 from .utils import *
 from .maxplus import maxplus, MaxPlus
+from .models.general import LayerNorm2d, LayerScaler, DropPath, DownSample
 
 __version__ = '0.1.0'
 
