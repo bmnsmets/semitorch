@@ -1,13 +1,15 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Union, Tuple, Optional
+from ..utils import ntuple
 
 
 class LayerNorm2d(nn.LayerNorm):
     """LayerNorm for channels of 2D spatial NCHW feature maps"""
 
-    def __init__(self, channels, eps=1e-6, affine=True):
-        super().__init__(channels, eps=eps, elementwise_affine=affine)
+    def __init__(self, channels, eps=1e-6, elementwise_affine=True):
+        super().__init__(channels, eps=eps, elementwise_affine=elementwise_affine)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x.permute(0, 2, 3, 1)
@@ -54,16 +56,3 @@ class DropPath(nn.Module):
 
     def extra_repr(self):
         return f"drop_prob = {round(self.drop_prob,2):0.2f}"
-    
-
-class DownSample(nn.Module):
-    def __init__(self, in_chs, out_chs, stride=1, dilation=1):
-        self.pool = nn.Identity()
-        
-        if in_chs != out_chs:
-            self.conv = nn.Conv2d(in_chs, out_chs, 1, stride=1)
-        
-    def forward(self, x):
-        x = self.pool(x) if hasattr(self, 'pool') else x
-        x = self.conv(x) if hasattr(self, 'conv') else x
-        return x

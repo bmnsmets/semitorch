@@ -6,9 +6,15 @@ import taichi as ti
 
 from .utils import *
 from .maxplus import maxplus, MaxPlus
-from .models.general import LayerNorm2d, LayerScaler, DropPath, DownSample
+from .models.general import LayerNorm2d, LayerScaler, DropPath
+from .models.convnext import (
+    ConvNeXtBlock,
+    ConvNeXtBlock_MaxPlusMLP,
+    ConvNeXtStage,
+    ConvNeXt,
+)
 
-__version__ = '0.1.0'
+__version__ = "0.1.0"
 
 _libsemitorch = None
 _verbose_jit_load = True
