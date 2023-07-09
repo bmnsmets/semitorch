@@ -38,8 +38,23 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Union, Tuple, Optional, List
 from ..utils import ntuple
-from .general import LayerNorm2d, LayerScaler, DropPath
+from .general import LayerNorm2d, LayerScaler, DropPath, named_apply
 from timm.models.registry import register_model
+from functools import partial
+
+
+@torch.no_grad()
+def _init_weights(module, name=None, head_init_scale=1.0):
+    if isinstance(module, nn.Conv2d):
+        nn.trunc_normal_(module.weight, std=0.02)
+        if module.bias is not None:
+            nn.init.zeros_(module.bias)
+    elif isinstance(module, nn.Linear):
+        nn.trunc_normal_(module.weight, std=0.02)
+        nn.init.zeros_(module.bias)
+        if name and "head." in name:
+            module.weight.data.mul_(head_init_scale)
+            module.bias.data.mul_(head_init_scale)
 
 
 class ConvNeXtBlock(nn.Module):
@@ -153,7 +168,7 @@ class ConvNeXtStage(nn.Module):
 class ConvNeXt(nn.Module):
     def __init__(
         self,
-        in_channels: int = 3,
+        in_chans: int = 3,
         num_classes: int = 1000,
         depths: Tuple[int, ...] = (3, 3, 9, 3),
         channels: Tuple[int, ...] = (96, 192, 384, 768),
@@ -164,10 +179,12 @@ class ConvNeXt(nn.Module):
         make_block=lambda in_chs, out_chs, drop_prob: ConvNeXtBlock(
             in_chs, out_chs, drop_prob=drop_prob
         ),
+        head_init_scale: float = 1.0,
     ):
-        super.__init__()
-        self.in_channels = in_channels
+        super().__init__()
+        self.in_channels = in_chans
         self.num_classes = 1000
+        self.head_init_scale = head_init_scale
 
         assert len(depths) == len(
             channels
@@ -176,7 +193,7 @@ class ConvNeXt(nn.Module):
 
         self.stem = nn.Sequential(
             nn.Conv2d(
-                in_channels,
+                in_chans,
                 channels[0],
                 kernel_size=stem_patch_size,
                 stride=stem_patch_size,
@@ -195,6 +212,7 @@ class ConvNeXt(nn.Module):
                     depth=depths[i],
                     downsample=stage_downsample_rate,
                     make_block=make_block,
+                    drop_probs=path_drop_rate,
                 )
             )
 
@@ -202,4 +220,27 @@ class ConvNeXt(nn.Module):
 
         self.head = nn.Sequential(
             LayerNorm2d(channels[-1], elementwise_affine=True),
+            nn.AdaptiveAvgPool2d((1, 1)),  # N C H W -> N C 1 1
+            nn.Flatten(),
+            nn.Dropout(head_drop_rate),
+            nn.Linear(channels[-1], num_classes),
         )
+
+        self.reset_parameters()
+
+    def forward(self, x):
+        x = self.stem(x)
+        for i in range(len(self.stages)):
+            x = self.stages[i](x)
+        x = self.head(x)
+        return x
+
+    def reset_parameters(self):
+        named_apply(partial(_init_weights, head_init_scale=self.head_init_scale), self)
+
+
+@register_model
+def convnext_st_classic_atto(pretrained=False, **kwargs) -> ConvNeXt:
+    model_args = dict(depths=(2, 2, 6, 2), channels=(40, 80, 160, 320))
+    model = ConvNeXt(**dict(model_args, **kwargs))
+    return model
