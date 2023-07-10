@@ -52,6 +52,9 @@ class LayerScaler(nn.Module):
 
     def forward(self, x):
         return x * self.gamma
+    
+    def extra_repr(self):
+        return f"channels={len(self.gamma)}"
 
 
 def drop_path(
@@ -78,4 +81,4 @@ class DropPath(nn.Module):
         return drop_path(x, self.drop_prob, self.training, self.scale_by_keep)
 
     def extra_repr(self):
-        return f"drop_prob = {round(self.drop_prob,2):0.2f}"
+        return f"drop_prob={round(self.drop_prob,2):0.2f}"
