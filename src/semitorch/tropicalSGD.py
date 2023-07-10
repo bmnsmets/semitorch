@@ -1,7 +1,7 @@
 from torch import Tensor
 from torch.linalg import vector_norm
 from torch.optim import Optimizer
-
+from typing import Optional
 
 class TropicalSGD(Optimizer):
     """
@@ -22,7 +22,7 @@ class TropicalSGD(Optimizer):
         defaults = dict(lr=lr)
         super(TropicalSGD, self).__init__(params, defaults)
 
-    def step(self, input_tensor=Tensor | None, closure=None) -> None:
+    def step(self, input_tensor:Optional[Tensor], closure=None) -> None:
         if input_tensor is not None:
             norm_input = vector_norm(input_tensor)
         else:
