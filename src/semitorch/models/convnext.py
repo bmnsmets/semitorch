@@ -154,8 +154,8 @@ class ConvNeXtBlock_MaxPlusMLP(nn.Module):
         )
         self.norm = LayerNorm2d(out_chs)
         self.mlp = nn.Sequential(
-            nn.Linear(out_chs, out_chs * mlp_ratio),
-            MaxPlus(mlp_ratio * out_chs, out_chs),
+            MaxPlus(out_chs, out_chs * mlp_ratio),
+            nn.Linear(mlp_ratio * out_chs, out_chs),
         )
         self.scale = LayerScaler(layerscale_init_value, out_chs)
 
@@ -210,7 +210,7 @@ class ConvNeXtStage(nn.Module):
         ),
     ):
         super().__init__()
-        if downsample == None:
+        if downsample == None or downsample == 1.0:
             self.downsample = nn.Identity()
         else:
             self.downsample = nn.Sequential(
@@ -240,7 +240,7 @@ class ConvNeXt(nn.Module):
         channels: Tuple[int, ...] = (96, 192, 384, 768),
         head_drop_rate: float = 0.0,
         path_drop_rate: float = 0.0,
-        stem_patch_size: int = 4,
+        patch_size: int = 4,
         stage_downsample_rate: int = 2,
         make_block=lambda in_chs, out_chs, drop_prob: ConvNeXtBlock(
             in_chs, out_chs, drop_prob=drop_prob
@@ -262,8 +262,8 @@ class ConvNeXt(nn.Module):
             nn.Conv2d(
                 in_chans,
                 channels[0],
-                kernel_size=stem_patch_size,
-                stride=stem_patch_size,
+                kernel_size=patch_size,
+                stride=patch_size,
             ),
             LayerNorm2d(channels[0], elementwise_affine=True),
         )
@@ -272,12 +272,13 @@ class ConvNeXt(nn.Module):
         for i in range(nstages):
             prev_chs = channels[0] if i == 0 else channels[i - 1]
             next_chs = channels[i]
+            downsample = stage_downsample_rate if i > 0 else 1.0
             stages.append(
                 ConvNeXtStage(
                     in_chs=prev_chs,
                     out_chs=next_chs,
                     depth=depths[i],
-                    downsample=stage_downsample_rate,
+                    downsample=downsample,
                     make_block=make_block,
                     drop_probs=path_drop_rate,
                 )
@@ -309,5 +310,18 @@ class ConvNeXt(nn.Module):
 @register_model
 def convnext_st_classic_atto(pretrained=False, **kwargs) -> ConvNeXt:
     model_args = dict(depths=(2, 2, 6, 2), channels=(40, 80, 160, 320))
+    model = ConvNeXt(**dict(model_args, **kwargs))
+    return model
+
+
+@register_model
+def convnext_st_maxplusmlp_atto(pretrained=False, **kwargs) -> ConvNeXt:
+    model_args = dict(
+        depths=(2, 2, 6, 2),
+        channels=(40, 80, 160, 320),
+        make_block=lambda in_chs, out_chs, drop_prob: ConvNeXtBlock_MaxPlusMLP(
+            in_chs, out_chs, drop_prob=drop_prob
+        ),
+    )
     model = ConvNeXt(**dict(model_args, **kwargs))
     return model

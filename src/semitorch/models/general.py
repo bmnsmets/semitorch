@@ -82,3 +82,4 @@ class DropPath(nn.Module):
 
     def extra_repr(self):
         return f"drop_prob={round(self.drop_prob,2):0.2f}"
+
