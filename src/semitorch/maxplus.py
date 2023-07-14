@@ -3,6 +3,7 @@ from typing import Tuple
 import taichi as ti
 import taichi.math as tm
 import math
+from itertools import chain
 
 
 @ti.kernel
@@ -122,7 +123,6 @@ def maxplus_v1(x, a, bias=None):
     if bias != None:
         y.add_(bias)
     return y.reshape((*prefix_shape, -1))
-    
 
 
 maxplus = maxplus_v1
@@ -173,3 +173,17 @@ class MaxPlus(torch.nn.Module):
         return "in_features={}, out_features={}, bias={}".format(
             self.in_features, self.out_features, self.bias is not None
         )
+
+
+def maxplus_parameters(model):
+    return chain.from_iterable(
+        m.parameters() for m in model.modules() if isinstance(m, MaxPlus)
+    )
+
+
+def nonmaxplus_parameters(model):
+    return chain.from_iterable(
+        m.parameters()
+        for m in model.modules()
+        if not isinstance(m, MaxPlus) and list(m.children()) == []
+    )

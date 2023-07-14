@@ -5,7 +5,7 @@ import torch
 import taichi as ti
 
 from .utils import *
-from .maxplus import maxplus, MaxPlus
+from .maxplus import maxplus, MaxPlus, maxplus_parameters, nonmaxplus_parameters
 from .models.general import LayerNorm2d, LayerScaler, DropPath
 from .models.convnext import (
     ConvNeXtBlock,
