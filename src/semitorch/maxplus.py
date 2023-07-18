@@ -4,6 +4,7 @@ import taichi as ti
 import taichi.math as tm
 import math
 from itertools import chain
+from itertools import chain
 
 
 @ti.kernel
@@ -117,11 +118,12 @@ class MaxPlusFunction_v1(torch.autograd.Function):
 
 
 def maxplus_v1(x, a, bias=None):
+    prefix_shape = x.shape[0:-1]
+    x = torch.reshape(x, (-1, x.shape[-1]))
     y = MaxPlusFunction_v1.apply(x, a, torch.is_grad_enabled())
     if bias != None:
-        return y + bias
-    else:
-        return y
+        y.add_(bias)
+    return y.reshape((*prefix_shape, -1))
 
 
 maxplus = maxplus_v1
