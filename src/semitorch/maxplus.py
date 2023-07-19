@@ -161,9 +161,9 @@ class MaxPlus(torch.nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
-        maxplus_init_fair_(self.weight, K=-5)
+        maxplus_init_fair_(self.weight, K=-2)
         if self.bias is not None:
-            torch.nn.init.constant_(self.bias, -5)
+            torch.nn.init.constant_(self.bias, -4)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         return maxplus(input, self.weight, self.bias)
@@ -174,7 +174,7 @@ class MaxPlus(torch.nn.Module):
         )
 
 
-def maxplus_init_fair_(w: torch.Tensor, K: float = -5) -> torch.Tensor:
+def maxplus_init_fair_(w: torch.Tensor, K: float = -2) -> torch.Tensor:
     with torch.no_grad():
         torch.nn.init.eye_(w).add_(-1).mul_(-K)
     return w
