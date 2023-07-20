@@ -13,6 +13,7 @@ from .models.convnext import (
     ConvNeXtStage,
     ConvNeXt,
 )
+from .optim import MultiOptimizer, MultiLRScheduler
 
 __version__ = "0.1.0"
 
