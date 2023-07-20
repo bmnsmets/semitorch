@@ -1,5 +1,4 @@
 import torch
-from typing import Tuple
 import taichi as ti
 import taichi.math as tm
 import math
