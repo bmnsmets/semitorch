@@ -63,6 +63,21 @@ def test_maxplus_should_add_take_max_6D() -> None:
     ]))
 
 
+def test_maxplus_init() -> None:
+    weight = torch.nn.Parameter(
+        torch.empty((2, 2))
+    )
+    k = 2
+
+    with torch.no_grad():
+        torch.nn.init.eye_(weight).add_(-1).mul_(k)
+
+    assert weight.allclose(torch.Tensor([
+        [0, -2],
+        [-2, 0],
+    ]))
+
+
 def test_maxplus_fw_bw() -> None:
     tests.test_fw_bw(
         lambda x, a, b: torch.max(x.unsqueeze(-2) + a, dim=-1)[0] + b,

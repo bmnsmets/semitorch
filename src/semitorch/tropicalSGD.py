@@ -17,8 +17,8 @@ class TropicalSGD(Optimizer):
     """
 
     def __init__(self, params, lr):
-        if lr < 0.0:
-            raise ValueError("Invalid learning rate: {}".format(lr))
+        if lr <= 0.0:
+            raise ValueError(f"Invalid learning rate: {lr}, should be > 0.0")
 
         defaults = dict(lr=lr)
         super(TropicalSGD, self).__init__(params, defaults)

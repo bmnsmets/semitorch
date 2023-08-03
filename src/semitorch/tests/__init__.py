@@ -1,7 +1,7 @@
 import pytest
 import torch
 from taichi.lang.exception import TaichiTypeError
-from torch.autograd.gradcheck import gradcheck
+from torch.autograd.gradcheck import gradcheck, GradcheckError
 from typing import Callable, Sequence
 
 DEFAULT_RNG_SEED = 0
@@ -85,7 +85,7 @@ def test_wrong_dimensions_should_error(
         torch.randn(5, 10, requires_grad=True, dtype=torch.float64, device="cuda"),
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(GradcheckError):
         torch.autograd.gradcheck(semitorch_function, test_input, atol=1e-3, rtol=1e-1)
 
     test_input = (
