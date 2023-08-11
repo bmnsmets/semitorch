@@ -1,4 +1,6 @@
+import pytest
 import torch
+from itertools import product
 from semitorch import semilog
 
 DEFAULT_RNG_SEED = 0
@@ -95,3 +97,45 @@ def test_log_fw_bw() -> None:
     assert a1.grad.allclose(a2.grad, atol=1e-5)
     assert mu1.grad.allclose(mu2.grad, atol=1e-5)
     assert b1.grad.allclose(b2.grad, atol=1e-5)
+
+
+def test_semilog_should_error_on_different_devices() -> None:
+    for [device1, device2, device3] in product(["cpu", "cuda"], repeat=3):
+        test_input = (
+            torch.randn(1, 10, requires_grad=True, dtype=torch.float64, device=device1),
+            torch.randn(5, 10, requires_grad=True, dtype=torch.float64, device=device2),
+            torch.randn(1, requires_grad=True, dtype=torch.float64, device=device3)
+        )
+
+        if not (device1 == device2 and device1 == device3):
+            with pytest.raises(AssertionError):
+                semilog(*test_input)
+
+
+def test_semilog_should_error_on_wrong_dimensions() -> None:
+    test_input = (
+        torch.randn(1, 10, 3, requires_grad=True, dtype=torch.float64, device="cuda"),
+        torch.randn(5, 10, requires_grad=True, dtype=torch.float64, device="cuda"),
+        torch.randn(1, requires_grad=True, dtype=torch.float64, device="cuda"),
+    )
+
+    with pytest.raises(RuntimeError):
+        torch.autograd.gradcheck(semilog, test_input, atol=1e-3, rtol=1e-1)
+
+    test_input = (
+        torch.randn(1, 10, requires_grad=True, dtype=torch.float64, device="cuda"),
+        torch.randn(5, 10, 3, requires_grad=True, dtype=torch.float64, device="cuda"),
+        torch.randn(1, requires_grad=True, dtype=torch.float64, device="cuda"),
+    )
+
+    with pytest.raises(RuntimeError):
+        torch.autograd.gradcheck(semilog, test_input, atol=1e-3, rtol=1e-1)
+
+    test_input = (
+        torch.randn(1, 10, requires_grad=True, dtype=torch.float64, device="cuda"),
+        torch.randn(5, 10, requires_grad=True, dtype=torch.float64, device="cuda"),
+        torch.randn(1, 3, requires_grad=True, dtype=torch.float64, device="cuda"),
+    )
+
+    with pytest.raises(RuntimeError):
+        torch.autograd.gradcheck(semilog, test_input, atol=1e-3, rtol=1e-1)

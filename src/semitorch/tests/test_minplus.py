@@ -1,11 +1,8 @@
 import pytest
 import torch
 from semitorch import minplus
-<<<<<<< HEAD
-=======
 from taichi.lang.exception import TaichiTypeError
 from torch.autograd.gradcheck import gradcheck, GradcheckError
->>>>>>> d636f44 (Introduce semilog model)
 
 DEFAULT_RNG_SEED = 0
 torch.manual_seed(DEFAULT_RNG_SEED)

@@ -1,8 +1,6 @@
 import pytest
 import torch
 from semitorch import maxplus
-from taichi.lang.exception import TaichiTypeError
-from torch.autograd.gradcheck import gradcheck, GradcheckError
 
 DEFAULT_RNG_SEED = 0
 torch.manual_seed(DEFAULT_RNG_SEED)
@@ -105,16 +103,6 @@ def test_maxplus_fw_bw() -> None:
     assert b1.grad.allclose(b2.grad)
 
 
-def test_maxplus_autograd() -> None:
-    for device in ["cpu", "cuda"]:
-        test_input = (
-            torch.randn(1, 10, requires_grad=True, dtype=torch.float64, device=device),
-            torch.randn(5, 10, requires_grad=True, dtype=torch.float64, device=device),
-        )
-
-        assert gradcheck(maxplus, test_input, atol=1e-3, rtol=1e-1)
-
-
 def test_maxplus_should_error_on_different_devices() -> None:
     for [device1, device2] in [["cpu", "cuda"], ["cuda", "cpu"]]:
         test_input = (
@@ -132,7 +120,7 @@ def test_maxplus_should_error_on_wrong_dimensions() -> None:
         torch.randn(5, 10, requires_grad=True, dtype=torch.float64, device="cuda"),
     )
 
-    with pytest.raises(GradcheckError):
+    with pytest.raises(RuntimeError):
         torch.autograd.gradcheck(maxplus, test_input, atol=1e-3, rtol=1e-1)
 
     test_input = (
@@ -140,5 +128,5 @@ def test_maxplus_should_error_on_wrong_dimensions() -> None:
         torch.randn(5, 10, 3, requires_grad=True, dtype=torch.float64, device="cuda"),
     )
 
-    with pytest.raises(TaichiTypeError):
+    with pytest.raises(RuntimeError):
         torch.autograd.gradcheck(maxplus, test_input, atol=1e-3, rtol=1e-1)

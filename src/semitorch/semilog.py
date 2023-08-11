@@ -22,7 +22,7 @@ def semilog_v1(x, a, mu, bias=None):
     prefix_shape = x.shape[0:-1]
     x = torch.reshape(x, (-1, x.shape[-1]))
 
-    assert (x.device == a.device) and (x.device == mu.device),\
+    assert (x.device == a.device) and (x.device == mu.device), \
         f"inputs x, a, and mu should be on the same device but are on {x.device} resp. {a.device} resp. {mu.device}"
     x = x.contiguous().requires_grad_(True)
     a = a.contiguous().requires_grad_(True)
