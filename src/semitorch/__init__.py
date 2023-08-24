@@ -18,12 +18,6 @@ from .optim import MultiOptimizer, MultiLRScheduler
 from .logconv import logconv2d, LogConv2d, logconv_parameters, nonlogconv_parameters
 from .logplus import logplus, LogPlus, logplus_parameters, nonlogplus_parameters
 from .semilog import semilog, SemiLog, semilog_parameters, nonsemilog_parameters
-from .semilog_shifted import (
-    semilog_shifted,
-    SemiLogShifted,
-    semilog_shifted_parameters,
-    nonsemilog_shifted_parameters,
-)
 from .semilog_shifted_scaled import (
     semilog_shifted_scaled,
     SemiLogShiftedScaled,
