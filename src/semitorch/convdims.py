@@ -1,6 +1,6 @@
 import taichi as ti
 from typing import Optional, Union, Tuple, TypeVar
-
+from .utils import ntuple
 
 @ti.dataclass
 class ConvDims:

@@ -42,6 +42,7 @@ from .general import LayerNorm2d, LayerScaler, DropPath, named_apply
 from timm.models.registry import register_model
 from functools import partial
 from ..maxplus import MaxPlus
+from ..logconv import logconv2d, LogConv2d
 
 
 @torch.no_grad()
@@ -197,6 +198,78 @@ class ConvNeXtBlock_MaxPlusMLP(nn.Module):
         return self.skip(x) + self.drop_path(y)
 
 
+class LogConvNeXtBlock(nn.Module):
+    def __init__(
+        self,
+        in_chs: int,
+        out_chs: Optional[int] = None,
+        kernel_size: Union[int, Tuple[int, int]] = 7,
+        stride: Union[int, Tuple[int, int]] = 1,
+        padding="same",
+        mlp_ratio: int = 4,
+        drop_prob: float = 0.0,
+        layerscale_init_value=1e-6,
+        conv_bias: bool = True,
+        mu: float = 1.0,
+    ):
+        super().__init__()
+        out_chs = out_chs or in_chs
+        self.logconv_dw = LogConv2d(
+            in_chs,
+            out_chs,
+            kernel_size=kernel_size,
+            padding=padding,
+            stride=stride,
+            groups=in_chs,
+            bias=conv_bias,
+            mu=mu,
+        )
+        self.norm = LayerNorm2d(out_chs)
+        self.mlp = nn.Sequential(
+            nn.Linear(out_chs, out_chs * mlp_ratio),
+            nn.GELU(),
+            nn.Linear(mlp_ratio * out_chs, out_chs),
+        )
+        self.scale = LayerScaler(layerscale_init_value, out_chs)
+
+        if drop_prob > 0.0:
+            self.drop_path = DropPath(drop_prob)
+        else:
+            self.drop_path = nn.Identity()
+
+        skip_modules = []
+
+        if in_chs != out_chs:
+            skip_modules.append(nn.Conv2d(in_chs, out_chs, 1))
+
+        if padding != "same" or stride != 1:
+            skip_modules.append(
+                nn.AvgPool2d(
+                    kernel_size, stride=stride, padding=padding, ceil_mode=True
+                )
+            )
+
+        if len(skip_modules) > 1:
+            self.skip = nn.Sequential(*skip_modules)
+        elif len(skip_modules) == 1:
+            self.skip = skip_modules[0]
+        else:
+            self.skip = nn.Identity()
+
+    def forward(self, x):
+        # depthwise conv + normalization
+        y = self.logconv_dw(x)
+        y = self.norm(y)
+
+        # pixel-wise MLP
+        y = y.permute(0, 2, 3, 1)  # N C H W --> N H W C
+        y = self.mlp(y)
+        y = self.scale(y)
+        y = y.permute(0, 3, 1, 2)  # N H W C --> N C H W
+
+        return self.skip(x) + self.drop_path(y)
+
+
 class ConvNeXtStage(nn.Module):
     def __init__(
         self,
@@ -321,6 +394,19 @@ def convnext_st_maxplusmlp_atto(pretrained=False, **kwargs) -> ConvNeXt:
         channels=(40, 80, 160, 320),
         make_block=lambda in_chs, out_chs, drop_prob: ConvNeXtBlock_MaxPlusMLP(
             in_chs, out_chs, drop_prob=drop_prob
+        ),
+    )
+    model = ConvNeXt(**dict(model_args, **kwargs))
+    return model
+
+
+@register_model
+def convnext_st_logconv_atto(pretrained=False, **kwargs) -> ConvNeXt:
+    model_args = dict(
+        depths=(2, 2, 6, 2),
+        channels=(40, 80, 160, 320),
+        make_block=lambda in_chs, out_chs, drop_prob: LogConvNeXtBlock(
+            in_chs, out_chs, drop_prob=drop_prob, mu=1.0
         ),
     )
     model = ConvNeXt(**dict(model_args, **kwargs))

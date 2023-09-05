@@ -14,7 +14,7 @@ from .models.convnext import (
     ConvNeXt,
 )
 from .optim import MultiOptimizer, MultiLRScheduler
-from .logconv import logconv2d
+from .logconv import logconv2d, LogConv2d
 
 __version__ = "0.1.0"
 
