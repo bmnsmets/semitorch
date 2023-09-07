@@ -5,6 +5,7 @@ from typing import Optional, Union, Tuple
 from torch.utils.checkpoint import checkpoint
 from .utils import ntuple
 import torch.nn.functional as F
+from itertools import chain
 
 
 def _logconv2d(
@@ -117,3 +118,17 @@ class LogConv2d(torch.nn.modules.conv._ConvNd):
             dilation=self.dilation,
             groups=self.groups,
         )
+
+
+def logconv_parameters(model):
+    return chain.from_iterable(
+        m.parameters() for m in model.modules() if isinstance(m, LogConv2d)
+    )
+
+
+def nonlogconv_parameters(model):
+    return chain.from_iterable(
+        m.parameters()
+        for m in model.modules()
+        if not isinstance(m, LogConv2d) and list(m.children()) == []
+    )

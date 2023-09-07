@@ -47,7 +47,7 @@ from ..logconv import logconv2d, LogConv2d
 
 @torch.no_grad()
 def _init_weights(module, name=None, head_init_scale=1.0):
-    if isinstance(module, nn.Conv2d):
+    if isinstance(module, nn.Conv2d) or isinstance(module, LogConv2d):
         nn.init.trunc_normal_(module.weight, std=0.02)
         if module.bias is not None:
             nn.init.zeros_(module.bias)
@@ -401,7 +401,7 @@ def convnext_st_maxplusmlp_atto(pretrained=False, **kwargs) -> ConvNeXt:
 
 
 @register_model
-def convnext_st_logconv_atto(pretrained=False, **kwargs) -> ConvNeXt:
+def logconvnext_st_atto(pretrained=False, **kwargs) -> ConvNeXt:
     model_args = dict(
         depths=(2, 2, 6, 2),
         channels=(40, 80, 160, 320),

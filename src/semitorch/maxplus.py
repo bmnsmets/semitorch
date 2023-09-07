@@ -4,7 +4,6 @@ import taichi as ti
 import taichi.math as tm
 import math
 from itertools import chain
-from itertools import chain
 
 
 @ti.kernel
