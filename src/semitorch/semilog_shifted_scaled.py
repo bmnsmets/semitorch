@@ -62,7 +62,7 @@ class SemiLogShiftedScaled(torch.nn.Module):
             in_features: int,
             out_features: int,
             bias: bool = True,
-            k: float = 2.0,
+            k: float = 10.0,
             mu: float = 1.0,
             device=None,
             dtype=None,
