@@ -46,7 +46,7 @@ class MinPlus(torch.nn.Module):
             in_features: int,
             out_features: int,
             bias: bool = True,
-            k: float = 2.0,
+            k: float = 1.0,
             use_good_init: bool = True,
             device=None,
             dtype=None,
@@ -76,7 +76,7 @@ class MinPlus(torch.nn.Module):
             minplus_init_fair_(self.weight, k=k)
 
             if self.bias is not None:
-                torch.nn.init.constant_(self.bias, -k)
+                torch.nn.init.constant_(self.bias, k)
         else:
             from math import sqrt
 
@@ -96,9 +96,10 @@ class MinPlus(torch.nn.Module):
         )
 
 
-def minplus_init_fair_(w: torch.Tensor, k: float) -> torch.Tensor:
+def minplus_init_fair_(w: torch.Tensor, k: float = 1) -> torch.Tensor:
     with torch.no_grad():
-        torch.nn.init.eye_(w).add_(-1).mul_(-k)
+        #torch.nn.init.eye_(w).add_(-1).mul_(-k)
+        torch.nn.init.kaiming_uniform_(w).sub_(k).mul_(torch.eye(*w.shape).add_(-1))
     return w
 
 
