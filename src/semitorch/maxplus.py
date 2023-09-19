@@ -125,7 +125,10 @@ def maxplus_v1(x, a, bias=None):
     return y.reshape((*prefix_shape, -1))
 
 
-maxplus = maxplus_v1
+def maxplus_v2(x, a, bias=None):
+    return torch.max(x.unsqueeze(-2) + a, dim=-1)[0]
+
+maxplus = maxplus_v2
 
 
 class MaxPlus(torch.nn.Module):
