@@ -53,7 +53,6 @@ class SemiLog(torch.nn.Module):
             in_features: int,
             out_features: int,
             bias: bool = True,
-            k: float = 10.0,
             mu: float = 1.0,
             device=None,
             dtype=None,
@@ -62,8 +61,6 @@ class SemiLog(torch.nn.Module):
             raise ValueError(f"Invalid in_features: {in_features}, should be > 0")
         if out_features < 0:
             raise ValueError(f"Invalid out_features: {out_features}, should be > 0")
-        if k <= 0.0:
-            raise ValueError(f"Invalid k: {k}, should be > 0")
         if mu == 0:
             raise ValueError(f"Invalid mu: {mu}, should be unequal to 0")
 
@@ -79,15 +76,18 @@ class SemiLog(torch.nn.Module):
             self.bias = torch.nn.Parameter(torch.empty(out_features, **factory_kwargs))
         else:
             self.register_parameter("bias", None)
-        self.reset_parameters(k=k, mu=mu)
+        self.reset_parameters(mu=mu)
 
-    def reset_parameters(self, k: float, mu: float) -> None:
-        semilog_init_fair_(self.weight, k=k, mu=mu)
+    def reset_parameters(self, mu: float) -> None:
+        from math import sqrt
 
         torch.nn.init.constant_(self.mu, mu)
+        torch.nn.init.kaiming_uniform_(self.weight, a=sqrt(5))
 
         if self.bias is not None:
-            torch.nn.init.constant_(self.bias, k * sign(mu))
+            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight)
+            bound = 1 / sqrt(fan_in) if fan_in > 0 else 0
+            torch.nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         return semilog(input, self.weight, self.mu, self.bias)
@@ -96,16 +96,6 @@ class SemiLog(torch.nn.Module):
         return "in_features={}, out_features={}, bias={}".format(
             self.in_features, self.out_features, self.bias is not None
         )
-
-
-def semilog_init_fair_(w: torch.Tensor, k: float, mu: float) -> torch.Tensor:
-    with torch.no_grad():
-        torch.nn.init.eye_(w).add_(-1).mul_(k * sign(mu))
-    return w
-
-
-def sign(x: float) -> int:
-    return bool(x > 0) - bool(x < 0)
 
 
 def semilog_parameters(model):
