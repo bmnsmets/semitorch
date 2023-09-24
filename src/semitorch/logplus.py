@@ -60,11 +60,16 @@ class LogPlus(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
-        init.kaiming_uniform_(self.weight, a=math.sqrt(5))
-        if self.bias is not None:
-            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
-            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
-            init.uniform_(self.bias, -bound, bound)
+        # init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        with torch.no_grad():
+            k = 0.2 * abs(self.mu) * (-1.0 if self.mu < 0 else 1.0)
+            torch.nn.init.kaiming_uniform_(self.weight).add_(k).mul_(
+                torch.eye(*self.weight.shape).add_(-1)
+            )
+            if self.bias is not None:
+                fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
+                bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+                init.uniform_(self.bias, -bound, bound)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         return logplus(input, self.weight, self.mu, self.bias)
