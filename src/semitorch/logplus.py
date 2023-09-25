@@ -19,7 +19,10 @@ def _logplus(
     if bias:
         bias = bias.mul(mu).exp()
     y = linear(x, w, bias)
-    return y.log().div(mu)
+    if torch.isclose(y.cpu(), Tensor([0.0]), atol=1e-45, rtol=0):
+        raise Exception(f"Inf in logplus output: max={torch.max(y.abs())} min={torch.min(y.abs())}")
+    y = y.log().div(mu)
+    return y
 
 
 logplus = _logplus
