@@ -14,16 +14,19 @@ def _logplus(
     mu: float = 1.0,
     bias: Optional[Tensor] = None,
 ) -> Tensor:
-    x = x.mul(mu).exp()
-    w = w.mul(mu).exp()
+    ex = x.mul(mu).exp()
+    ew = w.mul(mu).exp()
     if bias:
-        bias = bias.mul(mu).exp()
-    y = linear(x, w, bias)
-    z = y.log().div(mu)
-    if z.isinf().cpu().any().item():
-        print(f"")
+        ebias = bias.mul(mu).exp()
+    else:
+        ebias = None
+    ey = linear(ex, ew, ebias)
+    y = ey.log().div(mu)
+    if y.isinf().cpu().any().item():
+        print(f"min(x)={torch.min(x)}  max(x)={torch.max(x)}")
+        print(f"min(w)={torch.min(w)}  max(w)={torch.max(w)}")
         raise Exception(f"inf in output: max(y)={torch.max(y)} min(y)={torch.min(y)}")
-    return z
+    return y
 
 
 logplus = _logplus
