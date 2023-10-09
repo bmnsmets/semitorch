@@ -46,8 +46,7 @@ class MinPlus(torch.nn.Module):
             in_features: int,
             out_features: int,
             bias: bool = True,
-            k: float = 1.0,
-            use_good_init: bool = True,
+            k: float = 2.0,
             device=None,
             dtype=None,
     ) -> None:
@@ -69,23 +68,13 @@ class MinPlus(torch.nn.Module):
             self.bias = torch.nn.Parameter(torch.empty(out_features, **factory_kwargs))
         else:
             self.register_parameter("bias", None)
-        self.reset_parameters(k=k, use_good_init=use_good_init)
+        self.reset_parameters(k=k)
 
-    def reset_parameters(self, k: float, use_good_init: bool) -> None:
-        if use_good_init:
-            minplus_init_fair_(self.weight, k=k)
+    def reset_parameters(self, k: float) -> None:
+        minplus_init_fair_(self.weight, k=k)
 
-            if self.bias is not None:
-                torch.nn.init.constant_(self.bias, k)
-        else:
-            from math import sqrt
-
-            torch.nn.init.kaiming_uniform_(self.weight, a=sqrt(5))
-
-            if self.bias is not None:
-                fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight)
-                bound = 1 / sqrt(fan_in) if fan_in > 0 else 0
-                torch.nn.init.uniform_(self.bias, -bound, bound)
+        if self.bias is not None:
+            torch.nn.init.constant_(self.bias, k)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         return minplus(input, self.weight, self.bias)
