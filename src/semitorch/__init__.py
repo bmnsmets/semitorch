@@ -5,6 +5,7 @@ from glob import glob
 import taichi as ti
 
 from .utils import *
+from .lukasiewicz import lukasiewicz, Lukasiewicz, lukasiewicz_parameters, nonlukasiewicz_parameters
 from .maxplus import maxplus, MaxPlus, maxplus_parameters, nonmaxplus_parameters
 from .minplus import minplus, MinPlus, minplus_parameters, nonminplus_parameters
 from .models.general import LayerNorm2d, LayerScaler, DropPath
@@ -25,6 +26,7 @@ from .semilog_shifted_scaled import (
     nonsemilog_shifted_scaled_parameters,
 )
 from .tropicalSGD import TropicalSGD
+from .viterbi import viterbi, Viterbi, viterbi_parameters, nonviterbi_parameters
 
 __version__ = '0.1.1'
 
