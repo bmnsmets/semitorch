@@ -5,6 +5,8 @@ from glob import glob
 import taichi as ti
 
 from .utils import *
+from .clampAdamW import ClampAdamW
+from .clampSGD import ClampSGD
 from .lukasiewicz import lukasiewicz, Lukasiewicz, lukasiewicz_parameters, nonlukasiewicz_parameters
 from .maxplus import maxplus, MaxPlus, maxplus_parameters, nonmaxplus_parameters
 from .minplus import minplus, MinPlus, minplus_parameters, nonminplus_parameters

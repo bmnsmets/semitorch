@@ -88,10 +88,7 @@ class Viterbi(torch.nn.Module):
         torch.nn.init.eye_(self.weight)
 
         if self.bias is not None:
-            from math import sqrt
-            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight)
-            bound = 1 / sqrt(fan_in) if fan_in > 0 else 0
-            torch.nn.init.uniform_(self.bias, -bound, bound)
+            torch.nn.init.zeros_(self.bias)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         return viterbi(input, self.weight, self.bias)
