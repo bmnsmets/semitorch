@@ -27,6 +27,13 @@ from .semilog_shifted_scaled import (
     semilog_shifted_scaled_parameters,
     nonsemilog_shifted_scaled_parameters,
 )
+from .transformers.datasetFromSubset import DatasetFromSubset
+from .transformers.datasetTransformers import (
+    IrisDatasetTransformer,
+)
+from .transformers.dataTransformerFunctions import (
+    rescaleNonNegativeToUnitInterval,
+)
 from .tropicalSGD import TropicalSGD
 from .viterbi import viterbi, Viterbi, viterbi_parameters, nonviterbi_parameters
 
