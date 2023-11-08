@@ -290,7 +290,7 @@ def test_rescaleRealsToUnitInterval_provided_maximum_minimum_2() -> None:
 def test_oneHotEncode() -> None:
     x = [0, 4, 2, 3, 1]
 
-    x_transform = oneHotEncode(x)
+    x_transform, _  = oneHotEncode(x)
     test = [[1, 0, 0, 0, 0], [0, 0, 0, 0, 1], [0, 0, 1, 0, 0], [0, 0, 0, 1, 0], [0, 1, 0, 0, 0]]
 
     assert x_transform == test
@@ -299,10 +299,21 @@ def test_oneHotEncode() -> None:
 
 
 def test_oneHotEncode_2() -> None:
-    x = [0, 2, 2, 8, 2]
+    x = [0, 2, 2, 1, 2]
 
-    x_transform = oneHotEncode(x)
-    test = [[1, 0, 0], [0, 1, 0], [0, 1, 0], [0, 0, 1], [0, 1, 0]]
+    x_transform, _  = oneHotEncode(x)
+    test = [[1, 0, 0], [0, 0, 1], [0, 0, 1], [0, 1, 0], [0, 0, 1]]
+
+    assert x_transform == test
+    assert all([[item >= 0 for item in arr] for arr in x_transform])
+    assert all([[item <= 1 for item in arr] for arr in x_transform])
+
+
+def test_oneHotEncode3() -> None:
+    x = [0, 2, 3, 1]
+
+    x_transform, _ = oneHotEncode(x, [0, 1, 2, 3, 4])
+    test = [[1, 0, 0, 0, 0], [0, 0, 1, 0, 0], [0, 0, 0, 1, 0], [0, 1, 0, 0, 0]]
 
     assert x_transform == test
     assert all([[item >= 0 for item in arr] for arr in x_transform])

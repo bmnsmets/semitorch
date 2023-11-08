@@ -30,6 +30,11 @@ from .semilog_shifted_scaled import (
 from .transformers.datasetFromSubset import DatasetFromSubset
 from .transformers.datasetTransformers import (
     IrisDatasetTransformer,
+    HeartDiseaseDatasetTransformer,
+    CirclesDatasetTransformer,
+    RingsDatasetTransformer,
+    SpheresDatasetTransformer,
+    FashionMNISTDatasetTransformer,
 )
 from .transformers.dataTransformerFunctions import (
     rescaleNonNegativeToUnitInterval,
