@@ -1,5 +1,11 @@
 from .datasetFromSubset import DatasetFromSubset
-from .dataTransformerFunctions import rescaleNonNegativeToUnitInterval
+from .dataTransformerFunctions import (
+    rescaleNonNegativeToUnitInterval,
+    rescaleNonPositiveToUnitInterval,
+    rescaleClosedIntervalToUnitInterval,
+    rescaleRealsToUnitInterval,
+    oneHotEncode,
+)
 from torch import Tensor
 
 

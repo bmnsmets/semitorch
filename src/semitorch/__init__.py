@@ -33,6 +33,10 @@ from .transformers.datasetTransformers import (
 )
 from .transformers.dataTransformerFunctions import (
     rescaleNonNegativeToUnitInterval,
+    rescaleNonPositiveToUnitInterval,
+    rescaleClosedIntervalToUnitInterval,
+    rescaleRealsToUnitInterval,
+    oneHotEncode,
 )
 from .tropicalSGD import TropicalSGD
 from .viterbi import viterbi, Viterbi, viterbi_parameters, nonviterbi_parameters
