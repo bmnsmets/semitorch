@@ -1,46 +1,44 @@
 import pytest
 import torch
-from semitorch import maxplus
+from semitorch import maxplusmp
 
 DEFAULT_RNG_SEED = 0
 torch.manual_seed(DEFAULT_RNG_SEED)
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
 
 
-def test_maxplus_should_add() -> None:
+def test_maxplusmp_should_add() -> None:
     x = torch.Tensor([[5.0]])
     a = torch.Tensor([[1.0], [2.0]])
-    y = maxplus(x, a)
+    y = maxplusmp(x, a)
     assert y.allclose(torch.Tensor([6.0, 7.0]))
 
 
-def test_maxplus_should_take_min() -> None:
+def test_maxplusmp_should_take_min() -> None:
     x = torch.Tensor([[0.0, 1.0, 2.0, 3.0, 4.0, -1.0]])
     a = torch.Tensor([[0.0, 0.0, 8.0, 1.2, 0.5, -3.6]])
-    y = maxplus(x, a)
+    y = maxplusmp(x, a)
     assert y.allclose(torch.Tensor([10.0]))
 
 
-def test_maxplus_should_add_and_take_max() -> None:
+def test_maxplusmp_should_add_and_take_max() -> None:
     x = torch.Tensor([[0.0, 1.0, 2.0, 3.0, 4.0, -1.0]])
     a = torch.Tensor([
         [0.0, 0.0, 8.0, 1.2, 0.5, -3.6],
         [0.0, -1.0, -9.2, 0.3, 4.2, 4.1],
         [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
     ])
-    y = maxplus(x, a)
+    y = maxplusmp(x, a)
     assert y.allclose(torch.Tensor([10.0, 8.2, 3.0]))
 
 
-def test_maxplus_should_add_and_take_max_2D() -> None:
+def test_maxplusmp_should_add_and_take_max_2D() -> None:
     x = torch.Tensor([[4.0, 1.0]])
     a = torch.Tensor([[1.0, -5.0], [-12.0, 14.0]])
-    y = maxplus(x, a)
+    y = maxplusmp(x, a)
     assert y.allclose(torch.Tensor([5.0, 15.0]))
 
 
-def test_maxplus_should_add_take_max_6D() -> None:
+def test_maxplusmp_should_add_take_max_6D() -> None:
     x = torch.Tensor([
         [4.0, 1.0, 0.1, 0.2, -1.9, -0.0],
         [5.0, -3.0, -0.0, 0.2, -10.7, 2.2],
@@ -54,7 +52,7 @@ def test_maxplus_should_add_take_max_6D() -> None:
         [0.0, -1.0, -9.2, 0.3, 4.2, 4.1],
         [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
     ])
-    y = maxplus(x, a)
+    y = maxplusmp(x, a)
     assert y.allclose(torch.Tensor([
         [9.2, 4.1, 3.0],
         [11.4, 6.3, 4.0],
@@ -65,7 +63,7 @@ def test_maxplus_should_add_take_max_6D() -> None:
     ]))
 
 
-def test_maxplus_init() -> None:
+def test_maxplusmp_init() -> None:
     weight = torch.nn.Parameter(
         torch.empty((2, 2))
     )
@@ -80,7 +78,7 @@ def test_maxplus_init() -> None:
     ]))
 
 
-def test_maxplus_fw_bw() -> None:
+def test_maxplusmp_fw_bw() -> None:
     x1 = torch.randn(10, 10, requires_grad=True, device="cuda")
     a1 = torch.randn(5, 10, requires_grad=True, device="cuda")
     b1 = torch.randn(5, requires_grad=True, device="cuda")
@@ -91,7 +89,7 @@ def test_maxplus_fw_bw() -> None:
     b2 = torch.clone(b1).detach().requires_grad_(True)
 
     y1 = torch.max(x1.unsqueeze(-2) + a1, dim=-1)[0] + b1
-    y2 = maxplus(x2, a2, b2)
+    y2 = maxplusmp(x2, a2, b2)
 
     assert y1.allclose(y2)
 
@@ -103,7 +101,7 @@ def test_maxplus_fw_bw() -> None:
     assert b1.grad.allclose(b2.grad)
 
 
-def test_maxplus_should_error_on_different_devices() -> None:
+def test_maxplusmp_should_error_on_different_devices() -> None:
     for [device1, device2] in [["cpu", "cuda"], ["cuda", "cpu"]]:
         test_input = (
             torch.randn(1, 10, requires_grad=True, dtype=torch.float64, device=device1),
@@ -111,17 +109,17 @@ def test_maxplus_should_error_on_different_devices() -> None:
         )
 
         with pytest.raises(AssertionError):
-            torch.autograd.gradcheck(maxplus, test_input, atol=1e-3, rtol=1e-1)
+            torch.autograd.gradcheck(maxplusmp, test_input, atol=1e-3, rtol=1e-1)
 
 
-def test_maxplus_should_error_on_wrong_dimensions() -> None:
+def test_maxplusmp_should_error_on_wrong_dimensions() -> None:
     test_input = (
         torch.randn(1, 10, 3, requires_grad=True, dtype=torch.float64, device="cuda"),
         torch.randn(5, 10, requires_grad=True, dtype=torch.float64, device="cuda"),
     )
 
     with pytest.raises(RuntimeError):
-        torch.autograd.gradcheck(maxplus, test_input, atol=1e-3, rtol=1e-1)
+        torch.autograd.gradcheck(maxplusmp, test_input, atol=1e-3, rtol=1e-1)
 
     test_input = (
         torch.randn(1, 10, requires_grad=True, dtype=torch.float64, device="cuda"),
@@ -129,4 +127,4 @@ def test_maxplus_should_error_on_wrong_dimensions() -> None:
     )
 
     with pytest.raises(RuntimeError):
-        torch.autograd.gradcheck(maxplus, test_input, atol=1e-3, rtol=1e-1)
+        torch.autograd.gradcheck(maxplusmp, test_input, atol=1e-3, rtol=1e-1)

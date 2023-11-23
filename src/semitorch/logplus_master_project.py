@@ -4,7 +4,7 @@ from torch.nn.functional import linear
 from torch.utils.checkpoint import checkpoint
 
 
-def semilog_fw_kernel_v1(
+def logplusmp_fw_kernel_v1(
         x: torch.tensor,  # [B,Dx]
         a: torch.tensor,  # [Dy,Dx]
         mu: torch.tensor,  # [1, 1]
@@ -18,7 +18,7 @@ def semilog_fw_kernel_v1(
     return torch.log(v) / mu
 
 
-def semilog_v1(x, a, mu, bias=None):
+def logplusmp_v1(x, a, mu, bias=None):
     prefix_shape = x.shape[0:-1]
     x = torch.reshape(x, (-1, x.shape[-1]))
 
@@ -28,16 +28,16 @@ def semilog_v1(x, a, mu, bias=None):
     a = a.contiguous().requires_grad_(True)
     mu = mu.contiguous().requires_grad_(True)
 
-    y = checkpoint(semilog_fw_kernel_v1, x, a, mu)
+    y = checkpoint(logplusmp_fw_kernel_v1, x, a, mu)
     if bias is not None:
         y.add_(bias)
     return y.reshape((*prefix_shape, -1))
 
 
-semilog = semilog_v1
+logplusmp = logplusmp_v1
 
 
-class SemiLog(torch.nn.Module):
+class LogPlusMP(torch.nn.Module):
     """
     Applies the logarithmic semiring transformation to the supplied data.
     """
@@ -90,7 +90,7 @@ class SemiLog(torch.nn.Module):
             torch.nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        return semilog(input, self.weight, self.mu, self.bias)
+        return logplusmp(input, self.weight, self.mu, self.bias)
 
     def extra_repr(self) -> str:
         return "in_features={}, out_features={}, bias={}".format(
@@ -98,15 +98,15 @@ class SemiLog(torch.nn.Module):
         )
 
 
-def semilog_parameters(model):
+def logplusmp_parameters(model):
     return chain.from_iterable(
-        m.parameters() for m in model.modules() if isinstance(m, SemiLog)
+        m.parameters() for m in model.modules() if isinstance(m, LogPlusMP)
     )
 
 
-def nonsemilog_parameters(model):
+def nonlogplusmp_parameters(model):
     return chain.from_iterable(
         m.parameters()
         for m in model.modules()
-        if not isinstance(m, SemiLog) and list(m.children()) == []
+        if not isinstance(m, LogPlusMP) and list(m.children()) == []
     )

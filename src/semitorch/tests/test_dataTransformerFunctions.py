@@ -1,5 +1,4 @@
 import pytest
-import torch
 from semitorch import (
     rescaleNonNegativeToUnitInterval,
     rescaleNonPositiveToUnitInterval,
@@ -9,17 +8,12 @@ from semitorch import (
 )
 from numpy import exp, tanh
 
-DEFAULT_RNG_SEED = 0
-torch.manual_seed(DEFAULT_RNG_SEED)
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
-
 
 def test_rescaleNonNegativeToUnitInterval_should_error_on_negative_inputs() -> None:
     x = [-1, 0, 2]
 
     with pytest.raises(AssertionError):
-        x_transform, maximum = rescaleNonNegativeToUnitInterval(x)
+        _, _ = rescaleNonNegativeToUnitInterval(x)
 
 
 def test_rescaleNonNegativeToUnitInterval_should_error_on_negative_maximum() -> None:
@@ -58,7 +52,7 @@ def test_rescaleNonPositiveToUnitInterval_should_error_on_negative_inputs() -> N
     x = [-1, 0, 2]
 
     with pytest.raises(AssertionError):
-        x_transform, minimum = rescaleNonPositiveToUnitInterval(x)
+        _, _ = rescaleNonPositiveToUnitInterval(x)
 
 
 def test_rescaleNonPositiveToUnitInterval_should_error_on_negative_maximum() -> None:
@@ -176,8 +170,8 @@ def test_rescaleClosedIntervalToUnitInterval_provided_maximum_minimum() -> None:
 
 
 def test_rescaleRealsToUnitInterval() -> None:
-    def sigmoid(x: float) -> float:
-        return 1.0 / (1.0 + exp(-x))
+    def sigmoid(y: float) -> float:
+        return 1.0 / (1.0 + exp(-y))
 
     x = [0, 1, -2, -3, 4]
 
@@ -192,8 +186,8 @@ def test_rescaleRealsToUnitInterval() -> None:
 
 
 def test_rescaleRealsToUnitInterval_provided_maximum() -> None:
-    def sigmoid(x: float) -> float:
-        return 1.0 / (1.0 + exp(-x))
+    def sigmoid(y: float) -> float:
+        return 1.0 / (1.0 + exp(-y))
 
     x = [0, 1, -2, -3, 4]
 
@@ -208,8 +202,8 @@ def test_rescaleRealsToUnitInterval_provided_maximum() -> None:
 
 
 def test_rescaleRealsToUnitInterval_provided_minimum() -> None:
-    def sigmoid(x: float) -> float:
-        return 1.0 / (1.0 + exp(-x))
+    def sigmoid(y: float) -> float:
+        return 1.0 / (1.0 + exp(-y))
 
     x = [0, 1, -2, -3, 4]
 
@@ -224,8 +218,8 @@ def test_rescaleRealsToUnitInterval_provided_minimum() -> None:
 
 
 def test_rescaleRealsToUnitInterval_provided_maximum_minimum() -> None:
-    def sigmoid(x: float) -> float:
-        return 1.0 / (1.0 + exp(-x))
+    def sigmoid(y: float) -> float:
+        return 1.0 / (1.0 + exp(-y))
 
     x = [0, 1, -2, -3, 4]
 
@@ -240,8 +234,8 @@ def test_rescaleRealsToUnitInterval_provided_maximum_minimum() -> None:
 
 
 def test_rescaleRealsToUnitInterval_provided_maximum_2() -> None:
-    def sigmoid(x: float) -> float:
-        return 1.0 / (1.0 + exp(-x))
+    def sigmoid(y: float) -> float:
+        return 1.0 / (1.0 + exp(-y))
 
     x = [0, 1, -2, -3, 4, 10, -10]
 
@@ -256,8 +250,8 @@ def test_rescaleRealsToUnitInterval_provided_maximum_2() -> None:
 
 
 def test_rescaleRealsToUnitInterval_provided_minimum_2() -> None:
-    def sigmoid(x: float) -> float:
-        return 1.0 / (1.0 + exp(-x))
+    def sigmoid(y: float) -> float:
+        return 1.0 / (1.0 + exp(-y))
 
     x = [0, 1, -2, -3, 4, 10, -10]
 
@@ -272,8 +266,8 @@ def test_rescaleRealsToUnitInterval_provided_minimum_2() -> None:
 
 
 def test_rescaleRealsToUnitInterval_provided_maximum_minimum_2() -> None:
-    def sigmoid(x: float) -> float:
-        return 1.0 / (1.0 + exp(-x))
+    def sigmoid(y: float) -> float:
+        return 1.0 / (1.0 + exp(-y))
 
     x = [0, 1, -2, -3, 4, 10, -10]
 
@@ -290,7 +284,7 @@ def test_rescaleRealsToUnitInterval_provided_maximum_minimum_2() -> None:
 def test_oneHotEncode() -> None:
     x = [0, 4, 2, 3, 1]
 
-    x_transform, _  = oneHotEncode(x)
+    x_transform, _ = oneHotEncode(x)
     test = [[1, 0, 0, 0, 0], [0, 0, 0, 0, 1], [0, 0, 1, 0, 0], [0, 0, 0, 1, 0], [0, 1, 0, 0, 0]]
 
     assert x_transform == test
@@ -301,7 +295,7 @@ def test_oneHotEncode() -> None:
 def test_oneHotEncode_2() -> None:
     x = [0, 2, 2, 1, 2]
 
-    x_transform, _  = oneHotEncode(x)
+    x_transform, _ = oneHotEncode(x)
     test = [[1, 0, 0], [0, 0, 1], [0, 0, 1], [0, 1, 0], [0, 0, 1]]
 
     assert x_transform == test

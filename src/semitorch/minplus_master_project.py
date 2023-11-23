@@ -3,7 +3,7 @@ from itertools import chain
 from torch.utils.checkpoint import checkpoint
 
 
-def minplus_fw_kernel_v1(
+def minplusmp_fw_kernel_v1(
         x: torch.Tensor,  # [B,Dx]
         a: torch.Tensor,  # [Dy,Dx]
 ):
@@ -13,7 +13,7 @@ def minplus_fw_kernel_v1(
     return torch.min(x.unsqueeze(-2) + a, dim=-1)[0]
 
 
-def minplus_v1(x, a, bias=None):
+def minplusmp_v1(x, a, bias=None):
     prefix_shape = x.shape[0:-1]
     x = torch.reshape(x, (-1, x.shape[-1]))
 
@@ -22,16 +22,16 @@ def minplus_v1(x, a, bias=None):
     x = x.contiguous().requires_grad_(True)
     a = a.contiguous().requires_grad_(True)
 
-    y = checkpoint(minplus_fw_kernel_v1, x, a)
+    y = checkpoint(minplusmp_fw_kernel_v1, x, a)
     if bias is not None:
         y.add_(bias)
     return y.reshape((*prefix_shape, -1))
 
 
-minplus = minplus_v1
+minplusmp = minplusmp_v1
 
 
-class MinPlus(torch.nn.Module):
+class MinPlusMP(torch.nn.Module):
     """
     Applies a tropical min-plus transformation to the supplied data.
     """
@@ -70,14 +70,14 @@ class MinPlus(torch.nn.Module):
             self.register_parameter("bias", None)
         self.reset_parameters(k=k)
 
-    def reset_parameters(self, k: float) -> None:
-        minplus_init_fair_(self.weight, k=k)
+    def reset_parameters(self, k: float,) -> None:
+        minplusmp_init_fair_(self.weight, k=k)
 
         if self.bias is not None:
-            torch.nn.init.constant_(self.bias, k)
+            torch.nn.init.constant_(self.bias, -k)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        return minplus(input, self.weight, self.bias)
+        return minplusmp(input, self.weight, self.bias)
 
     def extra_repr(self) -> str:
         return "in_features={}, out_features={}, bias={}".format(
@@ -85,22 +85,21 @@ class MinPlus(torch.nn.Module):
         )
 
 
-def minplus_init_fair_(w: torch.Tensor, k: float = 1) -> torch.Tensor:
+def minplusmp_init_fair_(w: torch.Tensor, k: float) -> torch.Tensor:
     with torch.no_grad():
-        #torch.nn.init.eye_(w).add_(-1).mul_(-k)
-        torch.nn.init.kaiming_uniform_(w).sub_(k).mul_(torch.eye(*w.shape).add_(-1))
+        torch.nn.init.eye_(w).add_(-1).mul_(-k)
     return w
 
 
-def minplus_parameters(model):
+def minplusmp_parameters(model):
     return chain.from_iterable(
-        m.parameters() for m in model.modules() if isinstance(m, MinPlus)
+        m.parameters() for m in model.modules() if isinstance(m, MinPlusMP)
     )
 
 
-def nonminplus_parameters(model):
+def nonminplusmp_parameters(model):
     return chain.from_iterable(
         m.parameters()
         for m in model.modules()
-        if not isinstance(m, MinPlus) and list(m.children()) == []
+        if not isinstance(m, MinPlusMP) and list(m.children()) == []
     )

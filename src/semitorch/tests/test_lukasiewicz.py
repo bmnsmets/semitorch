@@ -4,8 +4,6 @@ from semitorch import lukasiewicz
 
 DEFAULT_RNG_SEED = 0
 torch.manual_seed(DEFAULT_RNG_SEED)
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
 
 
 def test_lukasiewicz_should_addmax() -> None:

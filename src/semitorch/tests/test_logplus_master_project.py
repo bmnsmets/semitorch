@@ -1,19 +1,17 @@
 import pytest
 import torch
 from itertools import product
-from semitorch import semilog
+from semitorch import logplusmp
 
 DEFAULT_RNG_SEED = 0
 torch.manual_seed(DEFAULT_RNG_SEED)
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
 
 
 def test_log_multiplication_should_add() -> None:
     x = torch.Tensor([[5.0]])
     a = torch.Tensor([[1.0], [2.0]])
     mu = torch.Tensor([1.0])
-    y = semilog(x, a, mu)
+    y = logplusmp(x, a, mu)
     assert y.allclose(torch.Tensor([6.0, 7.0]), atol=1e-5)
 
 
@@ -21,7 +19,7 @@ def test_log_addition_should_log_of_sum_of_exps() -> None:
     x = torch.Tensor([[0.0, 1.0, 2.0, 3.0, 4.0, -1.0]])
     a = torch.Tensor([[0.0, 0.0, 8.0, 1.2, 0.5, -3.6]])
     mu = torch.Tensor([1.0])
-    y = semilog(x, a, mu)
+    y = logplusmp(x, a, mu)
     assert y.allclose(torch.Tensor([10.0073]), atol=1e-5)
 
 
@@ -33,7 +31,7 @@ def test_log_addition_and_multiplication() -> None:
         [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
     ])
     mu = torch.Tensor([1.0])
-    y = semilog(x, a, mu)
+    y = logplusmp(x, a, mu)
     assert y.allclose(torch.Tensor([10.0073, 8.2140, 3.4562]), atol=1e-5)
 
 
@@ -41,7 +39,7 @@ def test_log_addition_and_multiplication_2D() -> None:
     x = torch.Tensor([[4.0, 1.0]])
     a = torch.Tensor([[1.0, -5.0], [-12.0, 14.0]])
     mu = torch.Tensor([1.0])
-    y = semilog(x, a, mu)
+    y = logplusmp(x, a, mu)
     assert y.allclose(torch.Tensor([5.0001, 15.0]), atol=1e-5)
 
 
@@ -60,7 +58,7 @@ def test_log_addition_and_multiplication_6D() -> None:
         [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
     ])
     mu = torch.Tensor([1.0])
-    y = semilog(x, a, mu)
+    y = logplusmp(x, a, mu)
     assert y.allclose(torch.Tensor([
         [9.5, 4.8486, 3.1075],
         [11.4356, 6.5434, 4.0734],
@@ -86,7 +84,7 @@ def test_log_fw_bw() -> None:
     b2 = torch.clone(b1).detach().requires_grad_(True)
 
     y1 = torch.log(linear(torch.exp(mu1 * x1), torch.exp(mu1 * a1))) / mu1 + b1
-    y2 = semilog(x2, a2, mu2, b2)
+    y2 = logplusmp(x2, a2, mu2, b2)
 
     assert y1.allclose(y2, atol=1e-5)
 
@@ -99,7 +97,7 @@ def test_log_fw_bw() -> None:
     assert b1.grad.allclose(b2.grad, atol=1e-5)
 
 
-def test_semilog_should_error_on_different_devices() -> None:
+def test_logplusmp_should_error_on_different_devices() -> None:
     for [device1, device2, device3] in product(["cpu", "cuda"], repeat=3):
         test_input = (
             torch.randn(1, 10, requires_grad=True, dtype=torch.float64, device=device1),
@@ -109,10 +107,10 @@ def test_semilog_should_error_on_different_devices() -> None:
 
         if not (device1 == device2 and device1 == device3):
             with pytest.raises(AssertionError):
-                semilog(*test_input)
+                logplusmp(*test_input)
 
 
-def test_semilog_should_error_on_wrong_dimensions() -> None:
+def test_logplusmp_should_error_on_wrong_dimensions() -> None:
     test_input = (
         torch.randn(1, 10, 3, requires_grad=True, dtype=torch.float64, device="cuda"),
         torch.randn(5, 10, requires_grad=True, dtype=torch.float64, device="cuda"),
@@ -120,7 +118,7 @@ def test_semilog_should_error_on_wrong_dimensions() -> None:
     )
 
     with pytest.raises(RuntimeError):
-        torch.autograd.gradcheck(semilog, test_input, atol=1e-3, rtol=1e-1)
+        torch.autograd.gradcheck(logplusmp, test_input, atol=1e-3, rtol=1e-1)
 
     test_input = (
         torch.randn(1, 10, requires_grad=True, dtype=torch.float64, device="cuda"),
@@ -129,7 +127,7 @@ def test_semilog_should_error_on_wrong_dimensions() -> None:
     )
 
     with pytest.raises(RuntimeError):
-        torch.autograd.gradcheck(semilog, test_input, atol=1e-3, rtol=1e-1)
+        torch.autograd.gradcheck(logplusmp, test_input, atol=1e-3, rtol=1e-1)
 
     test_input = (
         torch.randn(1, 10, requires_grad=True, dtype=torch.float64, device="cuda"),
@@ -138,4 +136,4 @@ def test_semilog_should_error_on_wrong_dimensions() -> None:
     )
 
     with pytest.raises(RuntimeError):
-        torch.autograd.gradcheck(semilog, test_input, atol=1e-3, rtol=1e-1)
+        torch.autograd.gradcheck(logplusmp, test_input, atol=1e-3, rtol=1e-1)

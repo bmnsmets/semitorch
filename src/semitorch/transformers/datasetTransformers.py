@@ -1,11 +1,8 @@
 from .dataTransformerFunctions import (
     rescaleNonNegativeToUnitInterval,
-    rescaleNonPositiveToUnitInterval,
-    rescaleClosedIntervalToUnitInterval,
     rescaleRealsToUnitInterval,
     oneHotEncode,
 )
-from numpy import array, reshape
 from torch import Tensor
 
 
