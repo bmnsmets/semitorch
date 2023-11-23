@@ -1,7 +1,7 @@
 import torch
 import semitorch
 import pytest
-from semitorch import maxplus, maxplus
+from semitorch import maxplus, MaxPlus
 from torch.autograd.gradcheck import gradcheck
 
 

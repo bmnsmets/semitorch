@@ -4,7 +4,6 @@ import taichi as ti
 import taichi.math as tm
 import math
 from itertools import chain
-from itertools import chain
 
 
 @ti.kernel
@@ -126,7 +125,10 @@ def maxplus_v1(x, a, bias=None):
     return y.reshape((*prefix_shape, -1))
 
 
-maxplus = maxplus_v1
+def maxplus_v2(x, a, bias=None):
+    return torch.max(x.unsqueeze(-2) + a, dim=-1)[0]
+
+maxplus = maxplus_v2
 
 
 class MaxPlus(torch.nn.Module):
@@ -161,9 +163,9 @@ class MaxPlus(torch.nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
-        maxplus_init_fair_(self.weight, K=-5)
+        maxplus_init_fair_(self.weight, k=-1)
         if self.bias is not None:
-            torch.nn.init.constant_(self.bias, -5)
+            torch.nn.init.constant_(self.bias, -1)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         return maxplus(input, self.weight, self.bias)
@@ -174,9 +176,10 @@ class MaxPlus(torch.nn.Module):
         )
 
 
-def maxplus_init_fair_(w: torch.Tensor, K: float = -5) -> torch.Tensor:
+def maxplus_init_fair_(w: torch.Tensor, k: float = -1) -> torch.Tensor:
     with torch.no_grad():
-        torch.nn.init.eye_(w).add_(-1).mul_(-K)
+        #torch.nn.init.eye_(w).add_(-1).mul_(-k)
+        torch.nn.init.kaiming_uniform_(w).sub_(k).mul_(torch.eye(*w.shape).add_(-1))
     return w
 
 
