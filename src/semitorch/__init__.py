@@ -11,6 +11,7 @@ from .logconv import logconv2d, LogConv2d, logconv_parameters, nonlogconv_parame
 from .logplus import logplus, LogPlus, logplus_parameters, nonlogplus_parameters
 from .logplus_master_project import logplusmp, LogPlusMP, logplusmp_parameters, nonlogplusmp_parameters
 from .lukasiewicz import lukasiewicz, Lukasiewicz, lukasiewicz_parameters, nonlukasiewicz_parameters
+from .maxplus import maxplus, MaxPlus, maxplus_parameters, nonmaxplus_parameters
 from .maxplus_master_project import maxplusmp, MaxPlusMP, maxplusmp_parameters, nonmaxplusmp_parameters
 from .minplus_master_project import minplusmp, MinPlusMP, minplusmp_parameters, nonminplusmp_parameters
 from .models.general import LayerNorm2d, LayerScaler, DropPath
