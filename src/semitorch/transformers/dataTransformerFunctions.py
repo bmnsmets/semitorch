@@ -83,6 +83,7 @@ def rescaleRealsToUnitInterval(list_to_transform: list, maximum: float = None, m
         maximum = max(list_to_transform)
     if minimum is None:
         minimum = min(list_to_transform)
+    assert maximum != minimum, f"Cannot rescale input to unit interval if maximum equals minimum ({maximum})"
 
     return [sigmoid(2 * (item - minimum) / (maximum - minimum) - 1) for item in list_to_transform], maximum, minimum
 
