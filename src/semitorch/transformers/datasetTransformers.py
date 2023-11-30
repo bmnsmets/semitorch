@@ -5,6 +5,12 @@ from .dataTransformerFunctions import (
 )
 from torch import Tensor
 
+"""
+This file contains data set transformer classes to transform the supplied datasets
+(iris, heart disease, circles, rings, and spheres datasets) to the unit interval
+[0, 1] required for the Viterbi and Lukasiewics semirings.
+"""
+
 
 class BaseDatasetTransformer:
     def __init__(self, data_to_transform: list, device: str):
