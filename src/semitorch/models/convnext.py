@@ -43,6 +43,7 @@ from timm.models.registry import register_model
 from functools import partial
 from ..maxplus import MaxPlus
 from ..logconv import logconv2d, LogConv2d
+from itertools import chain
 
 
 @torch.no_grad()
@@ -128,6 +129,12 @@ class ConvNeXtBlock(nn.Module):
 
         return self.skip(x) + self.drop_path(y)
 
+    def linear_parameters(self):
+        return self.parameters()
+
+    def nonlinear_parameters(self):
+        return iter(())
+
 
 class ConvNeXtBlock_MaxPlusMLP(nn.Module):
     def __init__(
@@ -196,6 +203,20 @@ class ConvNeXtBlock_MaxPlusMLP(nn.Module):
         y = y.permute(0, 3, 1, 2)  # N H W C --> N C H W
 
         return self.skip(x) + self.drop_path(y)
+
+    def linear_parameters(self):
+        return chain.from_iterable(
+            [
+                self.conv_dw.parameters(),
+                self.norm.parameters(),
+                self.scale.parameters(),
+                self.mlp[1].parameters(),
+                self.skip.parameters(),
+            ]
+        )
+
+    def nonlinear_parameters(self):
+        return self.mlp[0].parameters()
 
 
 class LogConvNeXtBlock(nn.Module):
@@ -268,6 +289,18 @@ class LogConvNeXtBlock(nn.Module):
         y = y.permute(0, 3, 1, 2)  # N H W C --> N C H W
 
         return self.skip(x) + self.drop_path(y)
+    
+    def linear_parameters(self):
+        return chain.from_iterable([
+            self.norm.parameters(),
+            self.mlp.parameters(),
+            self.scale.parameters(),
+            self.skip.parameters(),
+            self.drop_path.parameters(),
+        ])
+    
+    def nonlinear_parameters(self):
+        return self.logconv_dw.parameters()
 
 
 class ConvNeXtStage(nn.Module):
@@ -302,6 +335,13 @@ class ConvNeXtStage(nn.Module):
         x = self.downsample(x)
         x = self.blocks(x)
         return x
+
+    def linear_parameters(self):
+        block_parameters = [b.linear_parameters() for b in self.blocks]
+        return chain.from_iterable([self.downsample.parameters(), *block_parameters])
+
+    def nonlinear_parameters(self):
+        return chain.from_iterable([b.nonlinear_parameters() for b in self.blocks])
 
 
 class ConvNeXt(nn.Module):
@@ -378,6 +418,19 @@ class ConvNeXt(nn.Module):
 
     def reset_parameters(self):
         named_apply(partial(_init_weights, head_init_scale=self.head_init_scale), self)
+
+    def linear_parameters(self):
+        stage_parameters = [s.linear_parameters() for s in self.stages]
+        return chain.from_iterable(
+            [
+                self.stem.parameters(),
+                *stage_parameters,
+                self.head.parameters(),
+            ]
+        )
+
+    def nonlinear_parameters(self):
+        return chain.from_iterable([s.nonlinear_parameters() for s in self.stages])
 
 
 @register_model
