@@ -4,6 +4,7 @@ import taichi as ti
 import taichi.math as tm
 import math
 from itertools import chain
+from torch.utils.checkpoint import checkpoint
 
 
 @ti.kernel
@@ -126,9 +127,15 @@ def maxplus_v1(x, a, bias=None):
 
 
 def maxplus_v2(x, a, bias=None):
-    return torch.max(x.unsqueeze(-2) + a, dim=-1)[0]
+    y = torch.max(x.unsqueeze(-2) + a, dim=-1)[0]
+    if bias is not None:
+        y.add_(bias)
+    return y
 
-maxplus = maxplus_v2
+def maxplus_v3(x, a, bias=None):
+    return checkpoint(maxplus_v2, x, a, bias)
+
+maxplus = maxplus_v3
 
 
 class MaxPlus(torch.nn.Module):
