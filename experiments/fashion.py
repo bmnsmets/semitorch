@@ -1,26 +1,34 @@
 import time
 from pathlib import Path
+from enum import StrEnum
 import typer
 from typing import Annotated, Optional, Iterable
 import torchvision
 import wandb
-from enum import Enum
-
-DATA_ROOT = Path("./data/")
-
-class ModelName(str, Enum):
-    convnext_atto = "convnext_atto"
-    convnext_maxplus_atto = "convnext_maxplus_atto"
-    convnext_minplus_atto = "convnext_minplus_atto"
-    convnext_log_m1_atto = "convnext_log_m1_atto"
-    convnext_log_p1_atto = "convnext_log_p1_atto"
+import timm
 
 
 #### Printing
 import rich
+from rich import print
 
 console = rich.console.Console()
 rich.traceback.install(show_locals=True)
+
+####    Model import
+from fashion_models import ModelName, list_models, create_model, create_config
+
+
+DATA_ROOT = Path("./data/")
+
+
+####
+####    Utilities
+####
+
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
 ####
@@ -204,6 +212,7 @@ def main(
                 "triton~=2.1.0",
                 "typer~=0.9.0",
                 "rich~=13.7.0",
+                "timm~=0.9.12",
             )
             .run_function(preload_fashionmnist)
         )
@@ -212,7 +221,9 @@ def main(
             stub = modal.Stub(
                 "semitorch_convnext_fashionmnist",
                 image=image,
-                secret=modal.Secret.from_name("wandb"),
+                secrets=[
+                    modal.Secret.from_name("wandb"),
+                ],
             )
         else:
             stub = modal.Stub("semitorch_convnext_fashionmnist", image=image)
