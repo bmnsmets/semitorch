@@ -22,11 +22,11 @@ def list_models(filter: str = "*") -> List[str]:
 def create_model(name: ModelName):
     if name == ModelName.convnext_atto:
         return timm.create_model(
-            "convnext_atto", in_chans=1, patch_size=1, num_classes=10
+            "convnext_atto", in_chans=1, patch_size=2, num_classes=10
         )
     else:
         raise NotImplementedError()
 
 
-def create_config(name: ModelName):
+def create_config(name: ModelName, batchsize:int, epochs: int):
     pass

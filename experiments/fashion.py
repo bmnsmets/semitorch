@@ -1,8 +1,14 @@
 import time
+import os
+import sys
 from pathlib import Path
-from enum import StrEnum
 import typer
-from typing import Annotated, Optional, Iterable
+from typing import Annotated, Optional, Iterable, List
+import torch
+import torch.nn as nn
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.distributed import init_process_group, destroy_process_group
+import torch.multiprocessing as mp
 import torchvision
 import wandb
 import timm
@@ -11,6 +17,7 @@ import timm
 #### Printing
 import rich
 from rich import print
+from rich.progress import Progress, BarColumn, TimeElapsedColumn, TimeRemainingColumn
 
 console = rich.console.Console()
 rich.traceback.install(show_locals=True)
@@ -19,6 +26,7 @@ rich.traceback.install(show_locals=True)
 from fashion_models import ModelName, list_models, create_model, create_config
 
 
+PROJECT_NAME = "semitorch-convnext-fashionmnist"
 DATA_ROOT = Path("./data/")
 
 
@@ -151,13 +159,63 @@ def preload_fashionmnist(path=DATA_ROOT):
     return
 
 
-def foo():
-    import socket
+def get_dataloaders(
+    batch_size: int, num_workers: Optional[int] = None, rng_seed: Optional[int] = None
+):
+    import torchvision.transforms as transforms
+    from torch.utils.data import DataLoader
+    from torch.utils.data.distributed import DistributedSampler
 
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.connect(("8.8.8.8", 1))  # connect() for UDP doesn't send packets
-    local_ip_address = s.getsockname()[0]
-    console.log(f"Hello from {socket.gethostname()} ({local_ip_address})")
+    # Load FashionMNIST dataset
+    transforms_train = transforms.Compose(
+        [
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.286,), (0.353,)),
+            # transforms.Resize((16, 16), antialias=True),
+            # transforms.RandomResizedCrop(
+            #     (16, 16), scale=(0.9, 1.0), ratio=(0.9, 1.1), antialias=True
+            # ),
+        ]
+    )
+    transforms_test = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize((0.286,), (0.353,)),
+            # transforms.Resize((16, 16), antialias=True),
+        ]
+    )
+    fashion_train = torchvision.datasets.FashionMNIST(
+        root=DATA_ROOT, train=True, transform=transforms_train
+    )
+    fashion_test = torchvision.datasets.FashionMNIST(
+        root=DATA_ROOT, train=False, transform=transforms_test
+    )
+
+    #fashion_num_features = fashion_test[0][0].shape[1] * fashion_test[0][0].shape[1]
+    #fashion_num_classes = torch.unique(fashion_test.targets).shape[0]
+
+    if rng_seed:
+        g = torch.Generator()
+        g.manual_seed(rng_seed)
+    else:
+        g = None
+
+    # create loaders
+    fashion_train_loader = DataLoader(
+        fashion_train,
+        batch_size=batch_size,
+        pin_memory=True,
+        shuffle=False,
+        generator=g,
+        num_workers=num_workers,
+        sampler=DistributedSampler(fashion_train),
+    )
+    fashion_test_loader = DataLoader(
+        fashion_test, batch_size=batch_size, shuffle=False, num_workers=num_workers
+    )
+
+    return fashion_train_loader, fashion_test_loader
 
 
 ####
@@ -165,26 +223,238 @@ def foo():
 ####
 
 
-def train_batch():
+def train_batch(model: nn.Module):
     pass
 
 
+def run(
+    rank: int,
+    world_size: int,
+    progress: dict,
+    logqueue: mp.Queue,
+    devices: List[int],
+    modelname: ModelName,
+    batchsize: int,
+    epochs: int,
+    use_wandb: bool,
+    seeds: Optional[List[Optional[int]]] = None,
+):
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = "50100"
+    init_process_group(backend="nccl", rank=rank, world_size=world_size)
+    device = torch.device("cuda", devices[rank])
+    torch.cuda.set_device(device)
+    seed = seeds[rank] if seeds else None
+    seed and torch.manual_seed(seed)
+
+    def log(x):
+        logqueue.put_nowait(
+            (
+                f"\[rank{rank}@"
+                f"{sys._getframe().f_back.f_code.co_filename.split('/')[-1]}:"
+                f"{sys._getframe().f_back.f_lineno}] {x}"
+            )
+        )
+
+    log0 = lambda x: log(x) if rank == 0 else None
+
+    train_loader, test_loader = get_dataloaders(batchsize, num_workers=4, rng_seed=seed)
+    batches = len(train_loader)
+    total_samples = len(train_loader.dataset)
+    log0(f"Training dataset: {total_samples:,} samples in {batches:,} batches.")
+    log0(f"Test dataset: {len(test_loader.dataset):,} samples.")
+
+    model = DDP(create_model(modelname).to(device))
+    log(f"Created DDP model '{modelname}' on {device}.")
+
+    config = create_config(modelname, batchsize, epochs)
+
+    if rank == 0:
+        progress[rank] = {
+            "epoch": 0,
+            "total_epochs": epochs,
+            "sample": 0,
+            "total_samples": total_samples,
+        }
+
+    for i in range(epochs):
+        for j in range(batches):
+            time.sleep(0.0003)
+            if rank == 0:
+                progress[rank] = {
+                    "epoch": i + 1,
+                    "total_epochs": epochs,
+                    "sample": (j + 1) * batchsize,
+                    "total_samples": total_samples,
+                }
+
+    destroy_process_group()
+    return
+
+
 ####
-####    Entrypoint
+####    Entrypoints
 ####
+
+
+def main_local(
+    modelname: ModelName,
+    batchsize: int,
+    epochs: int,
+    runs: int,
+    seed: Optional[int] = None,
+    use_wandb: bool = True,
+    devices: Optional[List[int]] = None,
+):
+    import queue
+
+    if not torch.cuda.is_available():
+        raise RuntimeError(f"PyTorch reports CUDA is not available.")
+    elif torch.cuda.device_count() == 0:
+        raise RuntimeError(f"No CUDA devices available.")
+    
+    if seed != None:  # manual seed specified, so reproducibility matters
+        torch.use_deterministic_algorithms(True)
+        torch.manual_seed(seed)
+        # generate manual seed for each run
+        seeds = torch.randint(torch.iinfo(torch.long).max, (runs,)).tolist()
+        console.log(f"Reproducible seeds: {seeds}.")
+    else:  # no seed specified, don't care about reproducibility
+        seeds = [None for i in range(runs)]
+        console.log(f"Running in non-reproducible mode.")
+
+    if not devices:
+        devices = range(torch.cuda.device_count())
+
+    console.log(f"Using CUDA {torch.version.cuda} on the following devices:")
+    for device in devices:
+        props = torch.cuda.get_device_properties(device)
+        console.log(
+            (
+                f"  {device}: {props.name} "
+                f"(mem={props.total_memory / 1024**3:.0f} GB, "
+                f"cc={props.major}.{props.minor})"
+            )
+        )
+
+    world_size = len(devices)
+    if world_size == 1:
+        console.log(f"Spawning {world_size} training process.")
+    else:
+        console.log(f"Spawning {world_size} training processes.")
+
+    with Progress(
+        "[progress.description]{task.description}",
+        BarColumn(),
+        "[progress.percentage]{task.completed}/{task.total}",
+        TimeRemainingColumn(),
+        TimeElapsedColumn(),
+    ) as progress:
+        overall_progress = progress.add_task("[green]Runs:", total=runs)
+        epoch_progress = progress.add_task("[blue]Epochs:", visible=False)
+        sample_progress = progress.add_task("[purple]Samples:", visible=False)
+        for r in range(1, runs + 1):
+            with mp.Manager() as manager:
+                _progress = manager.dict()
+                _logqueue = manager.Queue(128)
+                ctx = mp.spawn(
+                    run,
+                    args=(
+                        world_size,
+                        _progress,
+                        _logqueue,
+                        devices,
+                        modelname,
+                        batchsize,
+                        epochs,
+                        use_wandb,
+                        seeds,
+                    ),
+                    nprocs=world_size,
+                    join=False,
+                )
+
+                while any([p.is_alive() for p in ctx.processes]):
+                    try:
+                        str = _logqueue.get_nowait()
+                        if str:
+                            progress.console.log(str)
+                    except queue.Empty as e:
+                        pass
+                    try:
+                        epoch = _progress[0]["epoch"]
+                        total_epochs = _progress[0]["total_epochs"]
+                        sample = _progress[0]["sample"]
+                        total_samples = _progress[0]["total_samples"]
+                        progress.update(
+                            epoch_progress,
+                            completed=epoch,
+                            total=total_epochs,
+                            visible=True,
+                        )
+                        progress.update(
+                            sample_progress,
+                            completed=sample,
+                            total=total_samples,
+                            visible=True,
+                        )
+                        time.sleep(0.01)
+                    except KeyError as e:
+                        time.sleep(0.1)
+
+                ctx.join()
+
+            progress.update(overall_progress, advance=1)
+    return
+
+
+def main_modal(
+    modelname: ModelName,
+    batchsize: int,
+    epochs: int,
+    runs: int,
+    seed: Optional[int] = None,
+    use_wandb: bool = True,
+    devices: Optional[List[int]] = None,
+):
+    if not torch.cuda.is_available():
+        raise RuntimeError(f"PyTorch reports CUDA is not available.")
+    elif torch.cuda.device_count() == 0:
+        raise RuntimeError(f"No CUDA devices available.")
+
+    if not devices:
+        devices = range(torch.cuda.device_count())
+
+    console.log(f"Using CUDA {torch.version.cuda} on the following devices:")
+    for device in devices:
+        props = torch.cuda.get_device_properties(device)
+        console.log(
+            (
+                f"  {device}: {props.name} "
+                f"(mem={props.total_memory / 1024**3:.0f} GB, "
+                f"cc={props.major}.{props.minor})"
+            )
+        )
+
+    world_size = len(devices)
+    return
 
 
 def main(
-    model: Annotated[ModelName, typer.Argument(help="Name of the model to train.")],
+    modelname: Annotated[ModelName, typer.Argument(help="Name of the model to train.")],
+    batchsize: Annotated[
+        int, typer.Option("--batchsize", "-b", help="Batchsize.")
+    ] = 512,
     epochs: Annotated[
         int, typer.Option("--epochs", "-e", help="Number of epochs to train.")
     ] = 50,
     runs: Annotated[
         int, typer.Option("--runs", "-r", help="Number of experiments to run")
-    ] = 10,
+    ] = 1,
     seed: Annotated[
-        int, typer.Option("--seed", "-s", help="Set RNG seed for reproducbility.")
-    ] = 42,
+        Optional[int],
+        typer.Option("--seed", help="Set RNG seed for reproducbility."),
+    ] = None,
     use_local: Annotated[
         bool,
         typer.Option(
@@ -194,12 +464,20 @@ def main(
     use_wandb: Annotated[
         bool, typer.Option("--wandb", help="Log data about training to wandb.ai")
     ] = True,
+    devices: Annotated[
+        Optional[List[int]],
+        typer.Option(
+            "--device",
+            "-d",
+            help="Manually specify CUDA devices to use. If not specified all devices will be used.",
+        ),
+    ] = None,
 ):
     print(f"🧪 [bold]ConvNeXt/FashionMNIST training[/bold]")
 
     if use_local:
         preload_fashionmnist()
-        foo()
+        main_local(modelname, batchsize, epochs, runs, seed, use_wandb, devices)
     else:
         import modal
 
@@ -217,20 +495,20 @@ def main(
             .run_function(preload_fashionmnist)
         )
 
-        if use_wandb:
-            stub = modal.Stub(
-                "semitorch_convnext_fashionmnist",
-                image=image,
-                secrets=[
-                    modal.Secret.from_name("wandb"),
-                ],
-            )
-        else:
-            stub = modal.Stub("semitorch_convnext_fashionmnist", image=image)
+        secrets = []
 
-        stub.function(gpu="t4")(foo)
+        if use_wandb:
+            secrets.append(modal.Secret.from_name("wandb"))
+
+        stub = modal.Stub(
+            "semitorch_convnext_fashionmnist", image=image, secrets=secrets
+        )
+
+        stub.function(gpu="t4")(main_modal)
         with stub.run():
-            stub.foo.remote()
+            stub.main_modal.remote(
+                modelname, batchsize, epochs, runs, seed, use_wandb, devices
+            )
 
     return
 
