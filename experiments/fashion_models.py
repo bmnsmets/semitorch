@@ -2,6 +2,8 @@ import timm
 from enum import StrEnum
 from typing import Optional, List
 from fnmatch import fnmatch
+import torch
+import torch.nn as nn
 
 
 class ModelName(StrEnum):
@@ -30,3 +32,13 @@ def create_model(name: ModelName):
 
 def create_config(name: ModelName, batchsize:int, epochs: int):
     pass
+
+
+def resetmodel(model: nn.Module) -> None:
+    @torch.no_grad()
+    def weight_reset(m: nn.Module):
+        reset_parameters = getattr(m, "reset_parameters", None)
+        if callable(reset_parameters):
+            m.reset_parameters()
+
+    model.apply(fn=weight_reset)
