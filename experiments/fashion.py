@@ -259,7 +259,9 @@ def train(
 
     log0 = lambda x: log(x) if rank == 0 else None
 
-    train_loader, test_loader = get_dataloaders(cfg.batchsize, num_workers=4, rng_seed=cfg.run_seed)
+    train_loader, test_loader = get_dataloaders(
+        cfg.batchsize, num_workers=4, rng_seed=cfg.run_seed
+    )
     batches = len(train_loader)
     total_samples = len(train_loader.dataset)
     log0(f"Training dataset: {total_samples:,} samples in {batches:,} batches.")
@@ -329,7 +331,7 @@ def main_local(cfg: SimpleNamespace):
         console.log(
             (
                 f"  {device}: {props.name} "
-                f"(mem={props.total_memory / 1024**3:.0f} GB, "
+                f"(mem={props.total_memory / 1024**3:.1f} GB, "
                 f"cc={props.major}.{props.minor})"
             )
         )
@@ -353,7 +355,7 @@ def main_local(cfg: SimpleNamespace):
         overall_progress = progress.add_task("[green]Runs:", total=cfg.runs)
         for r in range(1, cfg.runs + 1):
             cfg.run = r
-            cfg.run_seed = cfg.seeds[r-1]
+            cfg.run_seed = cfg.seeds[r - 1]
             with mp.Manager() as manager:
                 _progress = manager.dict()
                 _logqueue = manager.Queue(128)
@@ -408,7 +410,7 @@ def main_modal(cfg: SimpleNamespace):
         cfg.devices = range(torch.cuda.device_count())
 
     console.log(f"Using CUDA {torch.version.cuda} on the following devices:")
-    for device in devices:
+    for device in cfg.devices:
         props = torch.cuda.get_device_properties(device)
         console.log(
             (
@@ -520,7 +522,9 @@ def main(
 
 if __name__ == "__main__":
     app = typer.Typer(
-        add_completion=False, no_args_is_help=True, rich_markup_mode="rich"
+        add_completion=False,
+        no_args_is_help=True,
+        rich_markup_mode="rich",
     )
     app.command()(main)
     app()

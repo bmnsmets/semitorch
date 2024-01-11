@@ -30,7 +30,7 @@ def create_model(name: ModelName):
         raise NotImplementedError()
 
 
-def create_config(name: ModelName, batchsize:int, epochs: int):
+def create_optimizers_and_schedulers(name: ModelName, batchsize:int, epochs: int):
     pass
 
 
