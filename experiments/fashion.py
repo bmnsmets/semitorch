@@ -14,22 +14,36 @@ import torchvision
 import wandb
 import timm
 import torchmetrics
+import gc
 
 
 #### Printing
 import rich
 from rich import print
 from rich.progress import Progress, BarColumn, TimeElapsedColumn, TimeRemainingColumn
+from rich.pretty import Pretty
 
 console = rich.console.Console()
 rich.traceback.install(show_locals=True)
+
+
+class RedirectedStream:
+    def __init__(self, queue, rank: Optional[int] = None):
+        self.queue = queue
+
+    def write(self, message):
+        self.queue.put_nowait(("> ", message))
+
+    def flush(self):
+        pass
+
 
 ####    Model import
 from fashion_models import (
     ModelName,
     list_models,
     create_model,
-    create_config,
+    create_optimizers_and_schedulers,
     resetmodel,
 )
 
@@ -168,7 +182,7 @@ def preload_fashionmnist(path=DATA_ROOT):
 
 
 def get_dataloaders(
-    batch_size: int, num_workers: Optional[int] = None, rng_seed: Optional[int] = None
+    batch_size: int, num_workers: int = 0, rng_seed: Optional[int] = None
 ):
     import torchvision.transforms as transforms
     from torch.utils.data import DataLoader
@@ -217,10 +231,17 @@ def get_dataloaders(
         shuffle=False,
         generator=g,
         num_workers=num_workers,
+        prefetch_factor=2,
+        persistent_workers=True,
         sampler=DistributedSampler(fashion_train),
     )
     fashion_test_loader = DataLoader(
-        fashion_test, batch_size=batch_size, shuffle=False, num_workers=num_workers
+        fashion_test,
+        batch_size=1000,
+        shuffle=False,
+        num_workers=num_workers,
+        prefetch_factor=2,
+        persistent_workers=True,
     )
 
     return fashion_train_loader, fashion_test_loader
@@ -229,10 +250,6 @@ def get_dataloaders(
 ####
 ####    Training
 ####
-
-
-def train_batch(model: nn.Module):
-    pass
 
 
 def train(
@@ -244,34 +261,67 @@ def train(
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "50100"
     init_process_group(backend="nccl", rank=rank, world_size=cfg.world_size)
+
     device = torch.device("cuda", cfg.devices[rank])
     torch.cuda.set_device(device)
-    cfg.run_seed and torch.manual_seed(cfg.seed)
+    cfg.run_seed and torch.manual_seed(cfg.run_seed)
+
+    sys.stdout = RedirectedStream(logqueue)
+    sys.stderr = RedirectedStream(logqueue)
 
     def log(x):
         logqueue.put_nowait(
             (
                 f"\[rank{rank}@"
                 f"{sys._getframe().f_back.f_code.co_filename.split('/')[-1]}:"
-                f"{sys._getframe().f_back.f_lineno}] {x}"
+                f"{sys._getframe().f_back.f_lineno}]",
+                x,
             )
         )
 
-    log0 = lambda x: log(x) if rank == 0 else None
+    def log0(x):
+        if rank != 0:
+            return
+        logqueue.put_nowait(
+            (
+                f"\[rank{rank}@"
+                f"{sys._getframe().f_back.f_code.co_filename.split('/')[-1]}:"
+                f"{sys._getframe().f_back.f_lineno}]",
+                x,
+            )
+        )
 
     train_loader, test_loader = get_dataloaders(
         cfg.batchsize, num_workers=4, rng_seed=cfg.run_seed
     )
-    batches = len(train_loader)
+    cfg.batchcount = len(train_loader)
     total_samples = len(train_loader.dataset)
-    log0(f"Training dataset: {total_samples:,} samples in {batches:,} batches.")
+    log0(f"Training dataset: {total_samples:,} samples in {cfg.batchcount:,} batches.")
     log0(f"Test dataset: {len(test_loader.dataset):,} samples.")
 
-    model = DDP(create_model(cfg.modelname).to(device))
-    log(f"Created DDP model '{cfg.modelname}' on {device}.")
+    # Create the model
+    model = create_model(cfg.modelname)
+    cfg.nparameters = count_parameters(model)
 
-    config = create_config(cfg.modelname, cfg.batchsize, cfg.epochs)
+    opts, schds = create_optimizers_and_schedulers(model, cfg)
 
+    model.test_accuracy = torchmetrics.Accuracy(task="multiclass", num_classes=10)
+
+    log0(cfg)
+
+    model = DDP(model.to(device))
+    log(f"Created model '{cfg.modelname}' on {device} with {cfg.nparameters}")
+
+    # Loss function.
+    cfg.label_smoothing = 0.1
+    loss_fn = nn.CrossEntropyLoss(label_smoothing=cfg.label_smoothing).to(device)
+
+    # Init wandb.
+    if rank == 0 and cfg.use_wandb:
+        wandb.init(project=PROJECT_NAME, config=cfg)
+        wandb.watch(model, criterion=loss_fn, log="all", log_freq=cfg.batchcount)
+
+    # Starting run, zero the progress bars.
     if rank == 0:
         progress[rank] = {
             "epoch": 0,
@@ -280,18 +330,96 @@ def train(
             "total_samples": total_samples,
         }
 
-    for i in range(cfg.epochs):
-        for j in range(batches):
-            time.sleep(0.0003)
+    iteration = 0  # seperate counter for total iterations
+    test_accuracies = []
+    max_test_accuracy = 0.0
+
+    for epoch in range(1, cfg.epochs + 1):
+        model.train()
+        for j, (x, y) in enumerate(train_loader):
+            iteration = iteration + 1
+            x, y = x.to(device), y.to(device)
+            for opt in opts:
+                opt.zero_grad()
+
+            yout = model(x)
+            loss = loss_fn(yout, y)
+            loss.backward()
+
+            _, prediction = torch.max(yout.cpu(), dim=1)
+            train_accuracy = (y.cpu() == prediction).sum().item() / float(y.numel())
+
+            for opt in opts:
+                opt.step()
+
+            for schd in schds:
+                schd.step(epoch)
+
+            if cfg.use_wandb:
+                wandb.log(
+                    {
+                        "epoch": epoch,
+                        "iteration": iteration,
+                        "batch": j + 1,
+                        "loss": loss.cpu().item(),
+                        "train_accuracy": train_accuracy,
+                    }
+                )
+
+            # Done with iteration, update progress bars.
             if rank == 0:
                 progress[rank] = {
-                    "epoch": i + 1,
+                    "epoch": epoch,
                     "total_epochs": cfg.epochs,
                     "sample": (j + 1) * cfg.batchsize,
                     "total_samples": total_samples,
                 }
-    log0(cfg)
+
+        # Test model very epoch
+        if rank == 0:
+            with torch.no_grad():
+                model.eval()
+                accuracies = []
+                for j, (x, y) in enumerate(test_loader):
+                    x, y = x.to(device), y.to(device)
+                    yout = model(x)
+
+                    _, prediction = torch.max(yout.cpu(), dim=1)
+                    accuracy = (y.cpu() == prediction).sum().item() / float(y.numel())
+                    accuracies.append(accuracy)
+
+                test_accuracy = sum(accuracies) / len(accuracies)
+                log0(f"finished epoch {epoch}: test accuracy at {test_accuracy:.2%}")
+
+                test_accuracies.append(test_accuracy)
+                max_test_accuracy = max(max_test_accuracy, test_accuracy)
+
+                if rank == 0 and cfg.use_wandb:
+                    wandb.log(
+                        {
+                            "epoch": epoch,
+                            "test_accuracy": test_accuracy,
+                            "max_test_accuracy": max_test_accuracy,
+                        }
+                    )
+
+        # prevents OOM when GPU memory is tight
+        torch.cuda.empty_cache()
+        gc.collect()
+
+    # Run done, finish the progress bars.
+    if rank == 0:
+        progress[rank] = {
+            "epoch": cfg.epochs,
+            "total_epochs": cfg.epochs,
+            "sample": cfg.batchcount * cfg.batchsize,
+            "total_samples": total_samples,
+        }
+
     destroy_process_group()
+    cfg.use_wandb and rank == 0 and wandb.finish()
+    progress["max_test_accuracy"] = max_test_accuracy
+    log(f"Terminating rank {rank}.")
     return
 
 
@@ -302,6 +430,8 @@ def train(
 
 def main_local(cfg: SimpleNamespace):
     import queue
+
+    mp.set_start_method("spawn")
 
     # Check that CUDA is available.
     if not torch.cuda.is_available():
@@ -353,7 +483,9 @@ def main_local(cfg: SimpleNamespace):
         sample_progress = progress.add_task("[purple]Samples:", visible=False)
         epoch_progress = progress.add_task("[blue]Epochs:", visible=False)
         overall_progress = progress.add_task("[green]Runs:", total=cfg.runs)
+        max_test_accuracies = []
         for r in range(1, cfg.runs + 1):
+            max_test_accuracy = 0.0
             cfg.run = r
             cfg.run_seed = cfg.seeds[r - 1]
             with mp.Manager() as manager:
@@ -368,9 +500,16 @@ def main_local(cfg: SimpleNamespace):
 
                 while any([p.is_alive() for p in ctx.processes]):
                     try:
-                        str = _logqueue.get_nowait()
-                        if str:
-                            progress.console.log(str)
+                        head, x = _logqueue.get_nowait()
+                        if head:
+                            if type(x) == SimpleNamespace:
+                                progress.console.log(
+                                    head, "configuration=", Pretty(vars(x))
+                                )
+                            elif x == None:
+                                progress.console.log(head)
+                            else:
+                                progress.console.log(head, x)
                     except queue.Empty as e:
                         pass
                     try:
@@ -394,13 +533,27 @@ def main_local(cfg: SimpleNamespace):
                     except KeyError as e:
                         time.sleep(0.1)
 
+                    try:
+                        max_test_accuracy = _progress["max_test_accuracy"]
+                    except KeyError as e:
+                        pass
+                
                 ctx.join()
-
+                max_test_accuracies.append(max_test_accuracy)
+                
             progress.update(overall_progress, advance=1)
+           
+            progress.console.log(
+                f"Completed run {r} with maximum test accuracy of {max_test_accuracies[-1]:.2%}"
+            )
+
+    console.log(f"Finished {cfg.runs} runs with maximal test accuracies: {max_test_accuracies}")
     return
 
 
 def main_modal(cfg: SimpleNamespace):
+    mp.set_start_method("spawn")
+
     if not torch.cuda.is_available():
         raise RuntimeError(f"PyTorch reports CUDA is not available.")
     elif torch.cuda.device_count() == 0:
@@ -494,7 +647,7 @@ def main(
             .pip_install(
                 "torch~=2.1.2",
                 "torchvision~=0.16.2",
-                "wandb~=0.16.1",
+                "wandb~=0.16.2",
                 "triton~=2.1.0",
                 "typer~=0.9.0",
                 "rich~=13.7.0",

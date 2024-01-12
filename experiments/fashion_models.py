@@ -4,6 +4,8 @@ from typing import Optional, List
 from fnmatch import fnmatch
 import torch
 import torch.nn as nn
+from timm.scheduler.cosine_lr import CosineLRScheduler
+from types import SimpleNamespace
 
 
 class ModelName(StrEnum):
@@ -23,15 +25,37 @@ def list_models(filter: str = "*") -> List[str]:
 
 def create_model(name: ModelName):
     if name == ModelName.convnext_atto:
-        return timm.create_model(
-            "convnext_atto", in_chans=1, patch_size=2, num_classes=10
+        model = timm.create_model(
+            "convnext_atto", in_chans=1, patch_size=1, num_classes=10
         )
     else:
         raise NotImplementedError()
 
+    return model
 
-def create_optimizers_and_schedulers(name: ModelName, batchsize:int, epochs: int):
-    pass
+
+def create_optimizers_and_schedulers(
+    model: nn.Module,
+    cfg: SimpleNamespace,
+):
+    if cfg.modelname == ModelName.convnext_atto:
+        cfg.lr = 4e-3
+        cfg.weight_decay = 5e-3
+        cfg.optimizer = "AdamW"
+        cfg.schedule = "1-cycle cosine"
+        opt = torch.optim.AdamW(
+            model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay
+        )
+        schd = CosineLRScheduler(
+            opt,
+            t_initial=cfg.epochs,
+            warmup_t=5,
+            warmup_lr_init=cfg.lr / 25,
+            lr_min=cfg.lr / 500,
+        )
+        return [opt], [schd]
+    else:
+        raise NotImplementedError()
 
 
 def resetmodel(model: nn.Module) -> None:
