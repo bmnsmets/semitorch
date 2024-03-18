@@ -272,7 +272,7 @@ def train(
     def log(x):
         logqueue.put_nowait(
             (
-                f"\[rank{rank}@"
+                f"[rank{rank}@"
                 f"{sys._getframe().f_back.f_code.co_filename.split('/')[-1]}:"
                 f"{sys._getframe().f_back.f_lineno}]",
                 x,
@@ -284,7 +284,7 @@ def train(
             return
         logqueue.put_nowait(
             (
-                f"\[rank{rank}@"
+                f"[rank{rank}@"
                 f"{sys._getframe().f_back.f_code.co_filename.split('/')[-1]}:"
                 f"{sys._getframe().f_back.f_lineno}]",
                 x,
@@ -573,7 +573,27 @@ def main_modal(cfg: SimpleNamespace):
             )
         )
 
-    world_size = len(cfg.devices)
+    # Generate run seeds from the initial seeds for reproducibility if specified.
+    if cfg.reproducible:
+        torch.use_deterministic_algorithms(True)
+        torch.manual_seed(cfg.initial_seed)
+        # generate manual seed for each run
+        cfg.seeds = torch.randint(torch.iinfo(torch.long).max, (cfg.runs,)).tolist()
+        console.log(f"Reproducible seeds: {cfg.seeds}.")
+    else:  # no seed specified, don't care about reproducibility
+        cfg.seeds = [None for i in range(cfg.runs)]
+        console.log(f"Running in non-reproducible mode.")
+
+    # Number of worker processes to spawn.
+    cfg.world_size = len(cfg.devices)
+    if cfg.world_size == 1:
+        console.log(f"Spawning {cfg.world_size} training process.")
+    else:
+        console.log(f"Spawning {cfg.world_size} training processes.")
+
+
+
+        
     return
 
 
@@ -645,14 +665,14 @@ def main(
         image = (
             modal.Image.debian_slim()
             .pip_install(
-                "torch~=2.1.2",
-                "torchvision~=0.16.2",
-                "wandb~=0.16.2",
-                "triton~=2.1.0",
+                "torch~=2.2.1",
+                "torchvision~=0.17.1",
+                "wandb~=0.16.4",
+                "triton~=2.2.0",
                 "typer~=0.9.0",
                 "rich~=13.7.0",
-                "timm~=0.9.12",
-                "torchmetrics~=1.2.1",
+                "timm~=0.9.16",
+                "torchmetrics~=1.3.1",
             )
             .run_function(preload_fashionmnist)
         )
