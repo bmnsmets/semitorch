@@ -15,6 +15,7 @@ import wandb
 import timm
 import torchmetrics
 import gc
+import queue
 
 
 #### Printing
@@ -591,9 +592,57 @@ def main_modal(cfg: SimpleNamespace):
     else:
         console.log(f"Spawning {cfg.world_size} training processes.")
 
+    max_test_accuracies = []
+    for r in range(1, cfg.runs + 1):
+        max_test_accuracy = 0.0
+        cfg.run = r
+        cfg.run_seed = cfg.seeds[r - 1]
+        with mp.Manager() as manager:
+            _progress = manager.dict()
+            _logqueue = manager.Queue(128)
+            ctx = mp.spawn(
+                train,
+                args=(cfg, _progress, _logqueue),
+                nprocs=cfg.world_size,
+                join=False,
+            )
 
+            while any([p.is_alive() for p in ctx.processes]):
+                try:
+                    head, x = _logqueue.get_nowait()
+                    if head:
+                        if type(x) == SimpleNamespace:
+                            console.log(
+                                head, "configuration=", Pretty(vars(x))
+                            )
+                        elif x == None:
+                            console.log(head)
+                        else:
+                            console.log(head, x)
+                except queue.Empty as e:
+                    pass
+                try:
+                    epoch = _progress[0]["epoch"]
+                    total_epochs = _progress[0]["total_epochs"]
+                    sample = _progress[0]["sample"]
+                    total_samples = _progress[0]["total_samples"]
+                    time.sleep(0.01)
+                except KeyError as e:
+                    time.sleep(0.1)
 
-        
+                try:
+                    max_test_accuracy = _progress["max_test_accuracy"]
+                except KeyError as e:
+                    pass
+            
+            ctx.join()
+            max_test_accuracies.append(max_test_accuracy)
+                
+            console.log(
+                f"Completed run {r} with maximum test accuracy of {max_test_accuracies[-1]:.2%}"
+            )
+
+    console.log(f"Finished {cfg.runs} runs with maximal test accuracies: {max_test_accuracies}")
     return
 
 
@@ -686,7 +735,7 @@ def main(
             "semitorch_convnext_fashionmnist", image=image, secrets=secrets
         )
 
-        stub.function(gpu="t4")(main_modal)
+        stub.function(gpu="t4", timeout=24*3600)(main_modal)
         with stub.run():
             stub.main_modal.remote(config)
 
